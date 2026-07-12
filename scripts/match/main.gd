@@ -53,12 +53,21 @@ func _spawn_fighters() -> void:
 		visual.belt_color = cfg.belt_color
 
 		# Controller swap (same free/rename/add pattern as test/smoke.gd's
-		# _spawn_dummy): non-player fighters get a passive FighterController
-		# stub until step 7's AIController replaces it. Also done pre-add_child
-		# so Fighter's @onready controller reference resolves to the stub.
+		# _spawn_dummy): non-player fighters get an AIController parameterized
+		# by their FighterConfig's ai_profile; a null profile falls back to a
+		# passive FighterController stub (the smoke harness relies on that
+		# fallback staying available). Done pre-add_child so Fighter's @onready
+		# controller reference resolves to whichever node ends up named
+		# "Controller".
 		if not cfg.is_player:
 			fighter.get_node("Controller").free()
-			var stub := FighterController.new()
+			var stub: FighterController
+			if cfg.ai_profile != null:
+				var ai := AIController.new()
+				ai.profile = cfg.ai_profile
+				stub = ai
+			else:
+				stub = FighterController.new()
 			stub.name = "Controller"
 			fighter.add_child(stub)
 

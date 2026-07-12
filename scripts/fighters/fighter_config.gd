@@ -6,5 +6,5 @@ extends Resource
 @export var gi_color := Color(0.92, 0.9, 0.85)
 @export var belt_color := Color(0.15, 0.15, 0.15)
 @export var is_player := false
-@export var ai_profile: Resource = null
+@export var ai_profile: AIProfile = null
 @export var spawn_x := 0.0

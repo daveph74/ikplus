@@ -41,9 +41,12 @@ func _initialize() -> void:
 
 
 func _watchdog() -> void:
-	await _ticks(7200) # 120 simulated seconds — step 5 adds several wait-heavy scenarios
+	# 120 simulated seconds for the step 2-6 scenarios (generous headroom over
+	# their actual runtime) + the step 7 AI soak's own ~1800-tick (30 s) budget
+	# plus margin, so the watchdog stays ahead of total scenario length.
+	await _ticks(9600)
 	if not _done:
-		_fail("watchdog: scenarios did not complete in 7200 ticks")
+		_fail("watchdog: scenarios did not complete in 9600 ticks")
 
 
 func _run(main: Main) -> void:
@@ -69,10 +72,17 @@ func _run(main: Main) -> void:
 
 	var fighter_p2: Fighter = main.get_node("FighterP2")
 	var fighter_p3: Fighter = main.get_node("FighterP3")
+	# Step 7: FighterP2/P3 now carry live AIControllers out of Main's spawn.
+	# Immediately swap them for passive FighterController stubs (same
+	# free/rename/add pattern as _spawn_dummy/_restore_ai below) so every
+	# existing step 2-6 scenario keeps its deterministic passive dummies —
+	# real AI is only exercised in the dedicated soak scenario at the end.
+	_park_as_passive(fighter_p2)
+	_park_as_passive(fighter_p3)
 	# Park the AI fighters out of the way of the existing (step 2-5) combat
-	# scenarios below — they're passive stubs (no AIController until step 7), so
-	# parking just removes them as the closest target candidate; TargetingSystem
-	# may immediately reassign their own .target (harmless — they never move).
+	# scenarios below — parking just removes them as the closest target
+	# candidate; TargetingSystem may immediately reassign their own .target
+	# (harmless — passive stubs never move).
 	fighter_p2.position.x = -6.5
 	fighter_p3.position.x = -5.5
 	fighter_p2.target = null
@@ -290,6 +300,83 @@ func _run(main: Main) -> void:
 		"both fighters stay inside the arena bounds"
 	)
 
+	# --- step 7: AI soak — restore real AIControllers, run ~30 simulated
+	# seconds of full 3-fighter AI combat, assert liveness + real behaviour.
+	# The step 5 stun-lock-breaker dummy is a config-less fixture that would
+	# otherwise remain a valid TargetingSystem candidate and steal AI focus —
+	# remove it before restoring AI so P2/P3 can only target the player or
+	# each other.
+	dummy.queue_free()
+
+	# The player keeps reading the global Input singleton — make sure nothing
+	# injected by the scenarios above is still held down.
+	for action: StringName in [
+		&"move_left", &"move_right", &"down", &"jump", &"punch", &"kick", &"block"
+	]:
+		Input.action_release(action)
+
+	var ai_normal: AIProfile = load("res://resources/fighters/ai_normal.tres")
+	_restore_ai(fighter_p2, ai_normal)
+	_restore_ai(fighter_p3, ai_normal)
+
+	# Reposition all three fighters to their spawn marks (FighterConfig.spawn_x).
+	player.position = Vector3(-2.5, 0.0, 0.0)
+	fighter_p2.position = Vector3(0.0, 0.0, 0.0)
+	fighter_p3.position = Vector3(2.5, 0.0, 0.0)
+	player.target = null
+	fighter_p2.target = null
+	fighter_p3.target = null
+	player.velocity = Vector3.ZERO
+	fighter_p2.velocity = Vector3.ZERO
+	fighter_p3.velocity = Vector3.ZERO
+
+	_hit_events.clear()
+	_target_changed_events.clear()
+
+	# Sample AI states every 30 ticks into sets: every AI must pass through IDLE
+	# at some sampled point (nobody wedged in a stuck state), and blocks are
+	# stochastic so a directly-observed BLOCKING state is an acceptable
+	# alternative to a resolver BLOCKED event for assert (d) below.
+	var idle_seen := {} # Fighter -> true
+	var blocking_seen := false
+	const SOAK_TICKS := 1800 # ~30 simulated seconds at 60 tps
+	const SAMPLE_EVERY := 30
+	for i in SOAK_TICKS:
+		await physics_frame
+		if i % SAMPLE_EVERY == 0:
+			for f in [fighter_p2, fighter_p3]:
+				if f.state == Fighter.State.IDLE:
+					idle_seen[f] = true
+				elif f.state == Fighter.State.BLOCKING:
+					blocking_seen = true
+
+	var scoring_hits := 0
+	var ai_vs_ai := false
+	var blocked_seen := false
+	for ev in _hit_events:
+		var attacker := ev[0] as Fighter
+		var victim := ev[1] as Fighter
+		var result: int = ev[2]
+		match result:
+			CombatResolver.HitResult.HIT, CombatResolver.HitResult.KNOCKDOWN:
+				scoring_hits += 1
+			CombatResolver.HitResult.BLOCKED:
+				blocked_seen = true
+		if attacker != null and victim != null and attacker != player and victim != player:
+			ai_vs_ai = true # neither side is the player -> the two AI fighters fought each other
+
+	_check(not _failed, "AI soak: reached the end without a watchdog/assert failure (no crash)")
+	_check(scoring_hits >= 5, "AI soak: at least 5 HIT/KNOCKDOWN events occurred (got %d)" % scoring_hits)
+	_check(ai_vs_ai, "AI soak: at least one hit event was between the two AI fighters")
+	_check(
+		blocked_seen or blocking_seen,
+		"AI soak: at least one BLOCKED event or an observed AI BLOCKING state occurred"
+	)
+	_check(
+		idle_seen.has(fighter_p2) and idle_seen.has(fighter_p3),
+		"AI soak: both AI fighters passed through IDLE at some sampled point (nobody stuck)"
+	)
+
 	_finish()
 
 
@@ -308,6 +395,28 @@ func _spawn_dummy(parent: Node, x: float) -> Fighter:
 	parent.add_child(dummy)
 	dummy.position = Vector3(x, 0, 0)
 	return dummy
+
+
+## Step 7: swap out a spawned fighter's live AIController for a passive
+## FighterController stub — same free/rename/add pattern as _spawn_dummy,
+## reassigning fighter.controller since it's an @onready reference already
+## resolved by _ready() (a dangling pointer would crash the next tick).
+func _park_as_passive(fighter: Fighter) -> void:
+	fighter.get_node("Controller").free()
+	var stub := FighterController.new()
+	stub.name = "Controller"
+	fighter.add_child(stub)
+	fighter.controller = stub
+
+
+## Step 7: swap a passive stub back out for a fresh, real AIController.
+func _restore_ai(fighter: Fighter, profile: AIProfile) -> void:
+	fighter.get_node("Controller").free()
+	var ai := AIController.new()
+	ai.name = "Controller"
+	ai.profile = profile
+	fighter.add_child(ai)
+	fighter.controller = ai
 
 
 func _ticks(n: int) -> void:

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AIProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/ai_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+reaction_delay = 0.38
+aggression = 0.35
+block_chance = 0.25
+punish_chance = 0.2
+mistake_chance = 0.3
+retreat_chance = 0.12
+jump_attack_chance = 0.05
+attack_weights = {
+&"punch_high": 3.0,
+&"kick_front": 2.5,
+&"kick_high": 1.5,
+&"punch_body": 1.5,
+&"punch_low": 1.0,
+&"sweep": 1.2,
+&"kick_round": 1.0
+}
