@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"sweep"
+startup_frames = 8
+active_frames = 3
+recovery_frames = 14
+score_value = 1
+hit_stun_frames = 18
+knockback = Vector2(3.0, 0)
+height = 2
+causes_knockdown = true
+hits_airborne = false
+hit_stop_ms = 90
+hitbox_type = 1
+anim_name = &"sweep"

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"kick_round"
+startup_frames = 9
+active_frames = 4
+recovery_frames = 16
+score_value = 2
+hit_stun_frames = 20
+knockback = Vector2(3.5, 0)
+height = 0
+causes_knockdown = true
+hits_airborne = true
+hit_stop_ms = 90
+hitbox_type = 1
+anim_name = &"kick_round"

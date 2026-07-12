@@ -25,7 +25,14 @@ const WALK_BACK_SPEED := 2.4
 const AIR_STEER := 0.15 ## per-tick horizontal accel while airborne
 const JUMP_VELOCITY := 8.5
 const FACING_HYSTERESIS := 0.2 ## metres; stops crossup flip jitter
-const KNOCKBACK_DECAY := 12.0 ## m/s^2 ground friction on hit-stun knockback
+const KNOCKBACK_DECAY := 12.0 ## m/s^2 ground friction on hit-stun/block/knockdown knockback
+const AIR_ATTACK_LANDING_RECOVERY_FRAMES := 6 ## touching the floor mid-air-attack skips to this
+const BLOCK_STUN_FRAMES := 8
+const BLOCK_PUSHBACK_SPEED := 2.4 ## m/s impulse, decays like knockback
+const KNOCKDOWN_POP_VELOCITY := 3.0 ## upward pop added to a grounded knockdown hit
+const KNOCKDOWN_PRONE_TICKS := 42 ## counted only while on the floor
+const RECOVERY_TICKS := 24
+const STUN_LOCK_BREAKER_HITS := 3 ## 3rd consecutive hit while still in HIT_STUN -> knockdown
 
 var state := State.IDLE
 var facing := 1 ## +1 faces +X; flips Visual, never the body
@@ -42,6 +49,11 @@ var attack_tick := 0
 var victims_hit: Array[Fighter] = []
 var resolver: CombatResolver = null
 var _cached_velocity := Vector3.ZERO
+
+var is_airborne := false ## true while the current ATTACKING was started from JUMPING
+var has_air_attacked := false ## once per airborne period; reset on landing
+var block_stun_frames := 0 ## BLOCKING holds pose + ignores release while > 0
+var down_timer := 0 ## KNOCKED_DOWN prone ticks (floor-only) / RECOVERING get-up ticks
 
 @onready var controller: FighterController = $Controller
 @onready var visual: Node3D = $Visual
@@ -76,23 +88,44 @@ func _physics_process(delta: float) -> void:
 
 
 func can_start_attack() -> bool:
-	# Grounded attacks only until step 5 adds the air-attack path.
-	return state == State.IDLE or state == State.MOVING
+	if state == State.IDLE or state == State.MOVING:
+		return true
+	# Air attacks: once per airborne period (has_air_attacked resets on landing).
+	return state == State.JUMPING and not has_air_attacked
 
 
 # --- reactions (called by CombatResolver during its batched flush) ----------
 
 
-func apply_hit(attack: AttackData, from_dir: int, _result: int) -> void:
-	# KNOCKDOWN result falls back to hit-stun until step 5 adds KNOCKED_DOWN.
-	stun_frames = attack.hit_stun_frames
+func apply_hit(attack: AttackData, from_dir: int, result: int) -> void:
+	# Stun-lock breaker (anti two-on-one): the Nth consecutive hit landed while
+	# the victim is ALREADY in HIT_STUN forces a knockdown regardless of
+	# causes_knockdown — counter resets on entering KNOCKED_DOWN and on
+	# HIT_STUN -> IDLE (neutral).
+	var was_stunned := state == State.HIT_STUN
 	consecutive_stun_hits += 1
+	if was_stunned and consecutive_stun_hits >= STUN_LOCK_BREAKER_HITS:
+		result = CombatResolver.HitResult.KNOCKDOWN
+
 	var kb := Vector3(from_dir * attack.knockback.x, attack.knockback.y, 0)
-	if hitstop_frames > 0:
-		_cached_velocity = kb # frozen mid-trade: knockback must survive the freeze
-	else:
-		velocity = kb
+	if result == CombatResolver.HitResult.KNOCKDOWN:
+		consecutive_stun_hits = 0
+		if is_on_floor():
+			kb.y = maxf(kb.y, KNOCKDOWN_POP_VELOCITY)
+		_apply_knockback(kb)
+		_enter_state(State.KNOCKED_DOWN)
+		return
+
+	stun_frames = attack.hit_stun_frames
+	_apply_knockback(kb)
 	_enter_state(State.HIT_STUN)
+
+
+## Defender-side BLOCKED reaction: holds the block pose (ignoring release) for
+## ~8 ticks and applies a decaying X pushback impulse.
+func apply_blocked(pushback_dir: int) -> void:
+	block_stun_frames = BLOCK_STUN_FRAMES
+	_apply_knockback(Vector3(pushback_dir * BLOCK_PUSHBACK_SPEED, 0, 0))
 
 
 func apply_hitstop(frames: int) -> void:
@@ -101,6 +134,13 @@ func apply_hitstop(frames: int) -> void:
 		velocity = Vector3.ZERO
 		_set_frozen(true)
 	hitstop_frames = maxi(hitstop_frames, frames)
+
+
+func _apply_knockback(kb: Vector3) -> void:
+	if hitstop_frames > 0:
+		_cached_velocity = kb # frozen mid-trade: knockback must survive the freeze
+	else:
+		velocity = kb
 
 
 # --- FSM --------------------------------------------------------------------
@@ -114,6 +154,8 @@ func _state_physics(intent: FighterIntent, delta: float) -> void:
 			_update_facing(intent.move_x)
 			if intent.attack_id != &"":
 				_try_start_attack(intent.attack_id)
+			elif intent.block:
+				_enter_state(State.BLOCKING)
 			elif intent.jump and is_on_floor():
 				_start_jump(intent.move_x)
 			elif not is_zero_approx(intent.move_x):
@@ -124,6 +166,9 @@ func _state_physics(intent: FighterIntent, delta: float) -> void:
 			if intent.attack_id != &"":
 				velocity.x = 0.0
 				_try_start_attack(intent.attack_id)
+			elif intent.block:
+				velocity.x = 0.0
+				_enter_state(State.BLOCKING)
 			elif intent.jump and is_on_floor():
 				_start_jump(intent.move_x)
 			elif is_zero_approx(intent.move_x):
@@ -138,12 +183,20 @@ func _state_physics(intent: FighterIntent, delta: float) -> void:
 			velocity.x = clampf(
 				velocity.x + intent.move_x * AIR_STEER, -WALK_FWD_SPEED, WALK_FWD_SPEED
 			)
-			if is_on_floor() and velocity.y <= 0.0:
+			if intent.attack_id != &"":
+				_try_start_attack(intent.attack_id)
+			elif is_on_floor() and velocity.y <= 0.0:
 				velocity.x = 0.0
 				_enter_state(State.IDLE)
 		State.ATTACKING:
 			_apply_gravity(delta)
-			velocity.x = 0.0 # grounded attacks root the fighter (air attacks: step 5)
+			if is_airborne:
+				# Air attacks keep gravity and X velocity integrating (no rooting);
+				# touching the floor mid-attack ends it early (plan: "Air attacks").
+				if is_on_floor():
+					_land_air_attack()
+			else:
+				velocity.x = 0.0 # grounded attacks root the fighter
 			_attack_tick_update()
 		State.HIT_STUN:
 			_apply_gravity(delta)
@@ -153,8 +206,29 @@ func _state_physics(intent: FighterIntent, delta: float) -> void:
 				velocity.x = 0.0
 				consecutive_stun_hits = 0
 				_enter_state(State.IDLE)
+		State.BLOCKING:
+			_apply_gravity(delta)
+			velocity.x = move_toward(velocity.x, 0.0, KNOCKBACK_DECAY * delta)
+			if block_stun_frames > 0:
+				block_stun_frames -= 1
+			elif not intent.block:
+				velocity.x = 0.0
+				_enter_state(State.IDLE)
+		State.KNOCKED_DOWN:
+			_apply_gravity(delta)
+			velocity.x = move_toward(velocity.x, 0.0, KNOCKBACK_DECAY * delta)
+			if is_on_floor():
+				velocity.x = 0.0
+				down_timer += 1
+				if down_timer >= KNOCKDOWN_PRONE_TICKS:
+					_enter_state(State.RECOVERING)
+		State.RECOVERING:
+			_apply_gravity(delta)
+			down_timer += 1
+			if down_timer >= RECOVERY_TICKS:
+				_enter_state(State.IDLE)
 		_:
-			# BLOCKING / KNOCKED_DOWN / RECOVERING / ROUND_LOCKED / VICTORY: steps 5-8.
+			# ROUND_LOCKED / VICTORY: step 8.
 			_apply_gravity(delta)
 
 
@@ -197,13 +271,29 @@ func _try_start_attack(attack_id: StringName) -> void:
 	var attack := AttackRegistry.get_attack(attack_id)
 	if attack == null:
 		return
+	var from_jump := state == State.JUMPING
 	current_attack = attack
 	attack_tick = 0
 	victims_hit.clear()
-	velocity.x = 0.0
+	if from_jump:
+		is_airborne = true
+		has_air_attacked = true
+	else:
+		is_airborne = false
+		velocity.x = 0.0
 	_enter_state(State.ATTACKING)
 	if visual.has_method(&"play_attack"):
 		visual.call(&"play_attack", attack)
+
+
+## Air attack touching the floor mid-swing: hitbox off, skip straight to the
+## last AIR_ATTACK_LANDING_RECOVERY_FRAMES recovery frames, then IDLE as normal
+## (via the regular _attack_tick_update total_frames() check).
+func _land_air_attack() -> void:
+	is_airborne = false
+	velocity.x = 0.0
+	hitbox.deactivate()
+	attack_tick = maxi(attack_tick, current_attack.total_frames() - AIR_ATTACK_LANDING_RECOVERY_FRAMES)
 
 
 func _enter_state(new_state: State) -> void:
@@ -218,16 +308,30 @@ func _enter_state(new_state: State) -> void:
 			victims_hit.clear()
 			current_attack = null
 			attack_tick = 0
+			is_airborne = false
+		State.BLOCKING:
+			block_stun_frames = 0
+		State.KNOCKED_DOWN, State.RECOVERING:
+			down_timer = 0
 		_:
 			pass
 	state = new_state
 	match state:
 		State.IDLE:
 			_play_anim(&"idle")
+			has_air_attacked = false # landing (JUMPING/air-ATTACKING -> IDLE) resets it
 		State.JUMPING:
 			_play_anim(&"jump")
 		State.HIT_STUN:
 			_play_anim(&"hit_react")
+		State.BLOCKING:
+			_play_anim(&"block")
+		State.KNOCKED_DOWN:
+			_play_anim(&"knockdown")
+			down_timer = 0
+		State.RECOVERING:
+			_play_anim(&"recovery")
+			down_timer = 0
 		_:
 			pass # MOVING picks walk_fwd/walk_back per tick; ATTACKING uses play_attack
 

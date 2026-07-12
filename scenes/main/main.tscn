@@ -1,8 +1,9 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/match/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/fighters/fighter.tscn" id="2_fighter"]
 [ext_resource type="Script" path="res://scripts/combat/combat_resolver.gd" id="3_resolver"]
+[ext_resource type="Script" path="res://scripts/combat/debug_draw.gd" id="4_debug_draw"]
 
 [sub_resource type="BoxMesh" id="ground_mesh"]
 size = Vector3(20, 0.5, 6)
@@ -41,3 +42,6 @@ fov = 25.0
 [node name="CombatResolver" type="Node" parent="." groups=["combat_resolver"]]
 process_physics_priority = 100
 script = ExtResource("3_resolver")
+
+[node name="DebugDraw" type="Node" parent="."]
+script = ExtResource("4_debug_draw")

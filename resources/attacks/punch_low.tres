@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"punch_low"
+startup_frames = 5
+active_frames = 3
+recovery_frames = 10
+score_value = 1
+hit_stun_frames = 16
+knockback = Vector2(2.5, 0)
+height = 1
+causes_knockdown = false
+hits_airborne = false
+hit_stop_ms = 70
+hitbox_type = 0
+anim_name = &"punch_low"

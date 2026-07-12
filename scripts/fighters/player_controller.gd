@@ -29,9 +29,31 @@ func compute_intent(_delta: float) -> void:
 			intent.attack_id = _resolve_chord(button, fighter)
 
 
-## Directional modifiers resolve at consume time (docs/plan.md attack table).
-## Step 4 wires punch_high only; step 5 completes the 9-attack table.
-func _resolve_chord(button: StringName, _fighter: Fighter) -> StringName:
+## Directional modifiers resolve at consume time (docs/plan.md attack table):
+## down+punch = punch_low, fwd+punch = punch_body, punch alone = punch_high;
+## kick alone = kick_high, fwd+kick = kick_front, back+kick = kick_round,
+## down+kick = sweep; airborne (JUMPING) swaps to the air variants.
+func _resolve_chord(button: StringName, fighter: Fighter) -> StringName:
+	if fighter.state == Fighter.State.JUMPING:
+		return &"punch_jump" if button == &"punch" else &"kick_jump"
+
+	var down := Input.is_action_pressed(&"down")
+	var axis := Input.get_axis(&"move_left", &"move_right")
+	var fwd := not is_zero_approx(axis) and signf(axis) == float(fighter.facing)
+	var back := not is_zero_approx(axis) and signf(axis) == float(-fighter.facing)
+
 	if button == &"punch":
+		if down:
+			return &"punch_low"
+		if fwd:
+			return &"punch_body"
 		return &"punch_high"
-	return &""
+
+	# kick
+	if down:
+		return &"sweep"
+	if fwd:
+		return &"kick_front"
+	if back:
+		return &"kick_round"
+	return &"kick_high"

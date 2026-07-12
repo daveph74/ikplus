@@ -122,6 +122,10 @@ func _build_animation_player() -> void:
 	lib.add_animation(&"walk_back", _anim_walk(true))
 	lib.add_animation(&"jump", _anim_jump())
 	lib.add_animation(&"hit_react", _anim_hit_react())
+	lib.add_animation(&"block", _anim_block())
+	lib.add_animation(&"knockdown", _anim_knockdown())
+	lib.add_animation(&"recovery", _anim_recovery())
+	lib.add_animation(&"victory", _anim_victory())
 	# One clip per DISTINCT anim_name; clips are generated at that attack's
 	# total_seconds() with the strike pose exactly at startup_frames/60.
 	# Attacks sharing a clip get retimed by play_attack()'s custom_speed.
@@ -283,7 +287,309 @@ func _anim_hit_react() -> Animation:
 	}, [])
 
 
+func _anim_block() -> Animation:
+	## Looping guard: arms crossed high, slight crouch.
+	return _make_anim(0.8, true, {
+		"Rig/Hips/Torso": [[0.0, Vector3(0, 0, 0.12)]],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, 1.3)],
+			[0.4, Vector3(0, 0, 1.38)],
+			[0.8, Vector3(0, 0, 1.3)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, 1.1)],
+			[0.4, Vector3(0, 0, 1.18)],
+			[0.8, Vector3(0, 0, 1.1)],
+		],
+		"Rig/Hips/HipR": [[0.0, Vector3(0, 0, 0.15)]],
+		"Rig/Hips/HipR/KneeR": [[0.0, Vector3(0, 0, -0.3)]],
+		"Rig/Hips/HipL": [[0.0, Vector3(0, 0, -0.05)]],
+		"Rig/Hips/HipL/KneeL": [[0.0, Vector3(0, 0, -0.25)]],
+	}, [
+		[0.0, REST_HIPS_POS + Vector3(0, -0.08, 0)],
+		[0.4, REST_HIPS_POS + Vector3(0, -0.1, 0)],
+		[0.8, REST_HIPS_POS + Vector3(0, -0.08, 0)],
+	])
+
+
+func _anim_knockdown() -> Animation:
+	## One-shot fall: torso rotates back, hips drop, legs splay — ends prone.
+	return _make_anim(0.5, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -0.06)],
+			[0.25, Vector3(0, 0, -0.8)],
+			[0.5, Vector3(0, 0, -1.3)],
+		],
+		"Rig/Hips/Torso/Head": [
+			[0.0, Vector3.ZERO],
+			[0.5, Vector3(0, 0, -0.3)],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, GUARD_R)],
+			[0.5, Vector3(0, 0, -0.4)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, GUARD_L)],
+			[0.5, Vector3(0, 0, -0.3)],
+		],
+		"Rig/Hips/HipR": [
+			[0.0, Vector3.ZERO],
+			[0.5, Vector3(0, 0, -1.4)],
+		],
+		"Rig/Hips/HipR/KneeR": [
+			[0.0, Vector3(0, 0, -0.15)],
+			[0.5, Vector3(0, 0, -0.1)],
+		],
+		"Rig/Hips/HipL": [
+			[0.0, Vector3(0, 0, -0.05)],
+			[0.5, Vector3(0, 0, -1.35)],
+		],
+		"Rig/Hips/HipL/KneeL": [
+			[0.0, Vector3(0, 0, -0.2)],
+			[0.5, Vector3(0, 0, -0.1)],
+		],
+	}, [
+		[0.0, REST_HIPS_POS],
+		[0.5, Vector3(0, 0.25, 0)],
+	])
+
+
+func _anim_recovery() -> Animation:
+	## One-shot get-up: reverse of knockdown, back to standing guard.
+	return _make_anim(0.6, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -1.3)],
+			[0.35, Vector3(0, 0, -0.4)],
+			[0.6, Vector3(0, 0, -0.06)],
+		],
+		"Rig/Hips/Torso/Head": [
+			[0.0, Vector3(0, 0, -0.3)],
+			[0.6, Vector3.ZERO],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, -0.4)],
+			[0.6, Vector3(0, 0, GUARD_R)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, -0.3)],
+			[0.6, Vector3(0, 0, GUARD_L)],
+		],
+		"Rig/Hips/HipR": [
+			[0.0, Vector3(0, 0, -1.4)],
+			[0.6, Vector3(0, 0, 0.06)],
+		],
+		"Rig/Hips/HipR/KneeR": [
+			[0.0, Vector3(0, 0, -0.1)],
+			[0.6, Vector3(0, 0, -0.15)],
+		],
+		"Rig/Hips/HipL": [
+			[0.0, Vector3(0, 0, -1.35)],
+			[0.6, Vector3(0, 0, -0.02)],
+		],
+		"Rig/Hips/HipL/KneeL": [
+			[0.0, Vector3(0, 0, -0.1)],
+			[0.6, Vector3(0, 0, -0.08)],
+		],
+	}, [
+		[0.0, Vector3(0, 0.25, 0)],
+		[0.6, REST_HIPS_POS],
+	])
+
+
+func _anim_victory() -> Animation:
+	## One-shot: both arms up, slight hop via hips position.
+	return _make_anim(1.2, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -0.06)],
+			[0.3, Vector3(0, 0, 0.1)],
+			[1.2, Vector3(0, 0, 0.05)],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, GUARD_R)],
+			[0.3, Vector3(0, 0, -2.6)],
+			[1.2, Vector3(0, 0, -2.5)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, GUARD_L)],
+			[0.3, Vector3(0, 0, -2.7)],
+			[1.2, Vector3(0, 0, -2.6)],
+		],
+		"Rig/Hips/HipR": [[0.0, Vector3.ZERO]],
+		"Rig/Hips/HipR/KneeR": [[0.0, Vector3(0, 0, -0.15)]],
+		"Rig/Hips/HipL": [[0.0, Vector3.ZERO]],
+		"Rig/Hips/HipL/KneeL": [[0.0, Vector3(0, 0, -0.15)]],
+	}, [
+		[0.0, REST_HIPS_POS],
+		[0.3, REST_HIPS_POS + Vector3(0, 0.15, 0)],
+		[0.5, REST_HIPS_POS],
+		[1.2, REST_HIPS_POS],
+	])
+
+
+func _anim_sweep(attack: AttackData) -> Animation:
+	## Deep crouch (hips drop) + spinning low leg extended + torso twist. The
+	## dropped hips plus the extended leg put the strike reach near the floor.
+	var total := attack.total_seconds()
+	var t_hit := attack.startup_frames / 60.0
+	var t_hold := (attack.startup_frames + attack.active_frames) / 60.0
+	var crouch_hips := Vector3(0, 0.45, 0)
+	return _make_anim(total, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -0.06)],
+			[t_hit * 0.5, Vector3(0, 0.25, 0.15)],
+			[t_hit, Vector3(0, 0.55, 0.35)],
+			[t_hold, Vector3(0, 0.55, 0.35)],
+			[total, Vector3(0, 0, -0.06)],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, GUARD_R)],
+			[t_hit, Vector3(0, 0, 0.5)],
+			[total, Vector3(0, 0, GUARD_R)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, GUARD_L)],
+			[t_hit, Vector3(0, 0, 0.4)],
+			[total, Vector3(0, 0, GUARD_L)],
+		],
+		"Rig/Hips/HipR": [
+			[0.0, Vector3.ZERO],
+			[t_hit * 0.5, Vector3(0, 0, 0.7)],
+			[t_hit, Vector3(0, 0, 1.4)],
+			[t_hold, Vector3(0, 0, 1.4)],
+			[total, Vector3.ZERO],
+		],
+		"Rig/Hips/HipR/KneeR": [
+			[0.0, Vector3(0, 0, -0.15)],
+			[t_hit * 0.5, Vector3(0, 0, -0.6)],
+			[t_hit, Vector3(0, 0, -0.05)],
+			[t_hold, Vector3(0, 0, -0.05)],
+			[total, Vector3(0, 0, -0.15)],
+		],
+		"Rig/Hips/HipL": [
+			[0.0, Vector3(0, 0, -0.1)],
+			[t_hit, Vector3(0, 0, -0.9)],
+			[total, Vector3(0, 0, -0.1)],
+		],
+		"Rig/Hips/HipL/KneeL": [
+			[0.0, Vector3(0, 0, -0.2)],
+			[t_hit, Vector3(0, 0, -1.3)],
+			[total, Vector3(0, 0, -0.2)],
+		],
+	}, [
+		[0.0, REST_HIPS_POS],
+		[t_hit * 0.5, REST_HIPS_POS.lerp(crouch_hips, 0.6)],
+		[t_hit, crouch_hips],
+		[t_hold, crouch_hips],
+		[total, REST_HIPS_POS],
+	])
+
+
+func _anim_kick_round(attack: AttackData) -> Animation:
+	## High roundhouse: leg arcs high with torso counter-rotation on Y.
+	var total := attack.total_seconds()
+	var t_hit := attack.startup_frames / 60.0
+	var t_hold := (attack.startup_frames + attack.active_frames) / 60.0
+	return _make_anim(total, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -0.06)],
+			[t_hit * 0.5, Vector3(0, -0.35, 0.1)],
+			[t_hit, Vector3(0, -0.6, 0.2)],
+			[t_hold, Vector3(0, -0.6, 0.2)],
+			[total, Vector3(0, 0, -0.06)],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, GUARD_R)],
+			[t_hit, Vector3(0, 0, 0.9)],
+			[total, Vector3(0, 0, GUARD_R)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, GUARD_L)],
+			[t_hit, Vector3(0, 0, 1.5)],
+			[total, Vector3(0, 0, GUARD_L)],
+		],
+		"Rig/Hips/HipR": [
+			[0.0, Vector3.ZERO],
+			[t_hit * 0.5, Vector3(0.3, 0, 0.9)],
+			[t_hit, Vector3(0.6, 0, 1.55)],
+			[t_hold, Vector3(0.6, 0, 1.55)],
+			[total, Vector3.ZERO],
+		],
+		"Rig/Hips/HipR/KneeR": [
+			[0.0, Vector3(0, 0, -0.15)],
+			[t_hit * 0.5, Vector3(0, 0, -1.1)],
+			[t_hit, Vector3(0, 0, -0.1)],
+			[t_hold, Vector3(0, 0, -0.1)],
+			[total, Vector3(0, 0, -0.15)],
+		],
+		"Rig/Hips/HipL": [[0.0, Vector3(0, 0, -0.05)]],
+		"Rig/Hips/HipL/KneeL": [[0.0, Vector3(0, 0, -0.2)]],
+	}, [
+		[0.0, REST_HIPS_POS],
+		[t_hit, REST_HIPS_POS + Vector3(0.05, 0.05, 0)],
+		[total, REST_HIPS_POS],
+	])
+
+
+func _anim_kick_jump(attack: AttackData) -> Animation:
+	## Flying side-kick: lead leg extended forward, trail leg tucked hard,
+	## torso leaned back.
+	var total := attack.total_seconds()
+	var t_hit := attack.startup_frames / 60.0
+	var t_hold := (attack.startup_frames + attack.active_frames) / 60.0
+	return _make_anim(total, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -0.1)],
+			[t_hit, Vector3(0, 0, -0.5)],
+			[t_hold, Vector3(0, 0, -0.5)],
+			[total, Vector3(0, 0, -0.1)],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, GUARD_R)],
+			[t_hit, Vector3(0, 0, 0.9)],
+			[total, Vector3(0, 0, GUARD_R)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, GUARD_L)],
+			[t_hit, Vector3(0, 0, 1.4)],
+			[total, Vector3(0, 0, GUARD_L)],
+		],
+		"Rig/Hips/HipR": [
+			[0.0, Vector3.ZERO],
+			[t_hit * 0.5, Vector3(0, 0, 0.9)],
+			[t_hit, Vector3(0, 0, 1.5)],
+			[t_hold, Vector3(0, 0, 1.5)],
+			[total, Vector3.ZERO],
+		],
+		"Rig/Hips/HipR/KneeR": [
+			[0.0, Vector3(0, 0, -0.15)],
+			[t_hit * 0.5, Vector3(0, 0, -0.9)],
+			[t_hit, Vector3(0, 0, -0.05)],
+			[t_hold, Vector3(0, 0, -0.05)],
+			[total, Vector3(0, 0, -0.15)],
+		],
+		"Rig/Hips/HipL": [
+			[0.0, Vector3(0, 0, -1.1)],
+			[t_hit, Vector3(0, 0, -1.4)],
+			[total, Vector3(0, 0, -1.1)],
+		],
+		"Rig/Hips/HipL/KneeL": [
+			[0.0, Vector3(0, 0, -1.6)],
+			[t_hit, Vector3(0, 0, -1.8)],
+			[total, Vector3(0, 0, -1.6)],
+		],
+	}, [])
+
+
 func _anim_strike(attack: AttackData) -> Animation:
+	match attack.anim_name:
+		&"sweep":
+			return _anim_sweep(attack)
+		&"kick_round":
+			return _anim_kick_round(attack)
+		&"kick_jump":
+			return _anim_kick_jump(attack)
+		_:
+			pass # fall through to the generic HAND/FOOT poses below
 	var total := attack.total_seconds()
 	var t_hit := attack.startup_frames / 60.0
 	var t_hold := (attack.startup_frames + attack.active_frames) / 60.0

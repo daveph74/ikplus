@@ -15,6 +15,7 @@ func _ready() -> void:
 	while n != null and not n is Fighter:
 		n = n.get_parent()
 	owner_fighter = n as Fighter
+	add_to_group(&"combat_boxes") # DebugDraw (step 5) builds F3 overlays from this group
 
 
 func activate() -> void:

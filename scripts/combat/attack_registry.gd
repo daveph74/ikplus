@@ -6,6 +6,14 @@ extends RefCounted
 
 const ATTACKS := {
 	&"punch_high": preload("res://resources/attacks/punch_high.tres"),
+	&"punch_body": preload("res://resources/attacks/punch_body.tres"),
+	&"punch_low": preload("res://resources/attacks/punch_low.tres"),
+	&"kick_high": preload("res://resources/attacks/kick_high.tres"),
+	&"kick_front": preload("res://resources/attacks/kick_front.tres"),
+	&"kick_round": preload("res://resources/attacks/kick_round.tres"),
+	&"sweep": preload("res://resources/attacks/sweep.tres"),
+	&"kick_jump": preload("res://resources/attacks/kick_jump.tres"),
+	&"punch_jump": preload("res://resources/attacks/punch_jump.tres"),
 }
 
 
