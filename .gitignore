@@ -1,0 +1,2 @@
+# Godot 4 derived cache — never commit. (*.import / *.uid sidecars ARE tracked.)
+.godot/
