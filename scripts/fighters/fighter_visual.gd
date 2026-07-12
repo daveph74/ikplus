@@ -292,8 +292,8 @@ func _anim_strike(attack: AttackData) -> Animation:
 			"Rig/Hips/Torso": [
 				[0.0, Vector3(0, 0, -0.06)],
 				[t_hit * 0.5, Vector3(0, 0.15, -0.02)],
-				[t_hit, Vector3(0, -0.35, -0.12)],
-				[t_hold, Vector3(0, -0.35, -0.12)],
+				[t_hit, Vector3(0, 0.35, -0.12)],
+				[t_hold, Vector3(0, 0.35, -0.12)],
 				[total, Vector3(0, 0, -0.06)],
 			],
 			"Rig/Hips/Torso/ShoulderR": [

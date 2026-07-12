@@ -19,6 +19,11 @@ class Contact:
 
 var _queue: Array[Contact] = []
 
+# Autoloads are fetched via the tree, never as bare identifiers — bare autoload
+# globals only exist once a game boot registers them, so they fail the
+# --check-only parse gate (project convention; see tools/verify.sh).
+@onready var _events: Node = get_node(^"/root/GameEvents")
+
 
 func enqueue(attacker: Fighter, victim: Fighter, attack: AttackData) -> void:
 	if attacker == victim:
@@ -39,7 +44,7 @@ func _physics_process(_delta: float) -> void:
 	var reactions := {} # victim (Fighter) -> [Contact, HitResult]
 	for c in batch:
 		var result := resolve_contact(c.attacker, c.victim, c.attack, c.victim_state)
-		GameEvents.fighter_hit.emit(c.attacker, c.victim, result, c.attack)
+		_events.fighter_hit.emit(c.attacker, c.victim, result, c.attack)
 		if result == HitResult.HIT or result == HitResult.KNOCKDOWN:
 			c.attacker.apply_hitstop(c.attack.hit_stop_frames())
 			var prev: Array = reactions.get(c.victim, [])
