@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/match/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/combat/combat_resolver.gd" id="3_resolver"]
@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://scripts/match/pause_controller.gd" id="7_pause_controller"]
 [ext_resource type="Script" path="res://scripts/match/restart_controller.gd" id="8_restart_controller"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="9_hud"]
+[ext_resource type="Script" path="res://scripts/camera/camera_rig.gd" id="10_camera_rig"]
+[ext_resource type="Script" path="res://scripts/match/fx_manager.gd" id="11_fx_manager"]
 
 [sub_resource type="BoxMesh" id="ground_mesh"]
 size = Vector3(20, 0.5, 6)
@@ -38,9 +40,18 @@ shape = SubResource("ground_shape")
 transform = Transform3D(0.825336, -0.442298, 0.350989, 0, 0.62161, 0.783327, -0.564642, -0.646503, 0.513043, 0, 8, 0)
 shadow_enabled = true
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="."]
+process_physics_priority = 60
+script = ExtResource("10_camera_rig")
+
+[node name="ShakePivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/ShakePivot"]
 transform = Transform3D(1, 0, 0, 0, 0.996802, 0.0799147, 0, -0.0799147, 0.996802, 0, 2.2, 14)
 fov = 25.0
+
+[node name="FXManager" type="Node" parent="."]
+script = ExtResource("11_fx_manager")
 
 [node name="TargetingSystem" type="Node" parent="."]
 process_physics_priority = -10
