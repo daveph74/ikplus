@@ -28,6 +28,7 @@ var fighters: Array[Fighter] = []
 
 func _ready() -> void:
 	_spawn_fighters()
+	get_node(^"/root/AudioManager").call(&"start_ambience")
 
 
 func _physics_process(delta: float) -> void:
