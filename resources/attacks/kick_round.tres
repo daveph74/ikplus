@@ -15,5 +15,5 @@ height = 0
 causes_knockdown = true
 hits_airborne = true
 hit_stop_ms = 90
-hitbox_type = 1
+hitbox_type = 3
 anim_name = &"kick_round"

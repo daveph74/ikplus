@@ -15,5 +15,5 @@ height = 1
 causes_knockdown = false
 hits_airborne = false
 hit_stop_ms = 70
-hitbox_type = 0
+hitbox_type = 2
 anim_name = &"punch_low"

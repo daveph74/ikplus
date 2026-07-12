@@ -200,6 +200,12 @@ func _ensure_attachments() -> void:
 		_create_bone_attachment(
 			"AttachFootR", ["rightfoot", "footr", "rfoot", "footright", "righttoebase"]
 		)
+	if find_child("AttachHandL", true, false) == null:
+		_create_bone_attachment("AttachHandL", ["lefthand", "handl", "lhand", "handleft"])
+	if find_child("AttachFootL", true, false) == null:
+		_create_bone_attachment(
+			"AttachFootL", ["leftfoot", "footl", "lfoot", "footleft", "lefttoebase"]
+		)
 
 
 func _create_bone_attachment(attach_name: String, candidates: Array) -> void:
@@ -276,7 +282,7 @@ func _build_placeholder_rig() -> void:
 	var shoulder_l := _pivot(torso, "ShoulderL", Vector3(0, 0.5, -0.26))
 	_capsule(shoulder_l, 0.07, 0.26, Vector3(0, -0.14, 0), gi)
 	_capsule(shoulder_l, 0.055, 0.24, Vector3(0.025, -0.40, 0), skin, Vector3(0, 0, 8))
-	var hand_l := _pivot(shoulder_l, "HandL", Vector3(0, -0.52, 0))
+	var hand_l := _pivot(shoulder_l, "AttachHandL", Vector3(0, -0.52, 0))
 	_sphere(hand_l, 0.07, Vector3.ZERO, skin)
 
 	var hip_r := _pivot(hips, "HipR", Vector3(0, -0.06, 0.1))
@@ -294,7 +300,7 @@ func _build_placeholder_rig() -> void:
 	_capsule(knee_l, 0.07, 0.30, Vector3(0, -0.155, 0), gi)
 	_cylinder(knee_l, 0.075, 0.05, Vector3(0, -0.30, 0), gi_dark)
 	_capsule(knee_l, 0.045, 0.10, Vector3(0, -0.37, 0), skin)
-	var foot_l := _pivot(knee_l, "FootL", Vector3(0, -0.42, 0))
+	var foot_l := _pivot(knee_l, "AttachFootL", Vector3(0, -0.42, 0))
 	_box(foot_l, Vector3(0.22, 0.07, 0.10), Vector3(0.05, 0.03, 0), skin)
 
 

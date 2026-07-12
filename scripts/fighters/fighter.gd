@@ -62,6 +62,8 @@ var down_timer := 0 ## KNOCKED_DOWN prone ticks (floor-only) / RECOVERING get-up
 
 var _attach_hand: Node3D
 var _attach_foot: Node3D
+var _attach_hand_l: Node3D
+var _attach_foot_l: Node3D
 
 
 func _ready() -> void:
@@ -69,6 +71,8 @@ func _ready() -> void:
 	# Attachments are built by FighterVisual._ready (children ready before parents).
 	_attach_hand = visual.find_child("AttachHandR", true, false) as Node3D
 	_attach_foot = visual.find_child("AttachFootR", true, false) as Node3D
+	_attach_hand_l = visual.find_child("AttachHandL", true, false) as Node3D
+	_attach_foot_l = visual.find_child("AttachFootL", true, false) as Node3D
 	resolver = get_tree().get_first_node_in_group(&"combat_resolver") as CombatResolver
 	add_to_group(&"fighters") # TargetingSystem (step 6) and Main's separation push pull this group
 
@@ -421,7 +425,16 @@ func _apply_facing() -> void:
 ## sit BEHIND the fighter. Combat must degrade to invisible-but-correct, not
 ## broken: fall back to a synthetic forward strike point at the attack's height.
 func _hitbox_anchor(attack: AttackData) -> Vector3:
-	var n := _attach_hand if attack.hitbox_type == AttackData.HitboxType.HAND else _attach_foot
+	var n: Node3D = null
+	match attack.hitbox_type:
+		AttackData.HitboxType.HAND:
+			n = _attach_hand
+		AttackData.HitboxType.FOOT:
+			n = _attach_foot
+		AttackData.HitboxType.HAND_L:
+			n = _attach_hand_l
+		AttackData.HitboxType.FOOT_L:
+			n = _attach_foot_l
 	var animated := n != null
 	if animated and visual.has_method(&"resolve_clip"):
 		animated = visual.call(&"resolve_clip", attack.anim_name) != &""

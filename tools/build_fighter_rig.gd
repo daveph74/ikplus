@@ -24,13 +24,13 @@ const MAP := {
 	&"victory": ["backflip_jump", 0.0, -1.0, false, false],
 	&"hit_react": ["hit_reaction", 0.3, 1.6, false, false],
 	&"kick_high": ["high_kick", 0.55, 1.75, false, false],
-	&"punch_high": ["guard_punch", 1.62, 2.52, false, false], # right straight: peak reach 0.77m @ t=1.95 -> 37% of slice
-	&"punch_body": ["guard_punch", 1.62, 2.52, false, false], # interim dup
-	&"punch_low": ["guard_punch", 1.62, 2.52, false, false], # interim dup
+	&"punch_high": ["punch_combo", 1.2, 2.0, false, false], # right straight, peak 0.60m @ t=1.5
+	&"punch_body": ["punch_combo_3", 0.75, 1.55, false, false], # LEFT jab, peak 0.73m @ t=1.05 (hitbox_type HAND_L)
+	&"punch_low": ["punch_combo_4", 3.35, 4.1, false, false], # right punch, peak 0.94m @ t=3.6
 	&"kick_front": ["high_kick", 0.55, 1.75, false, false], # interim dup
-	&"kick_round": ["high_kick", 0.55, 1.75, false, false], # interim dup
+	&"kick_round": ["roundhouse", 1.95, 2.85, false, false], # LEFT roundhouse, peak y1.3 @ t=2.25 (hitbox_type FOOT_L)
 	&"kick_jump": ["high_kick", 0.55, 1.75, false, false], # interim dup
-	&"punch_jump": ["guard_punch", 1.62, 2.52, false, false], # interim dup
+	&"punch_jump": ["guard_punch", 1.62, 2.52, false, false], # interim: awaiting jumping_punch.glb
 	&"sweep": ["high_kick", 0.55, 1.75, false, false], # interim dup: awaiting sweeping_kick.glb
 	# &"knockdown"/&"recovery": no source clips in this pack yet
 }

@@ -6,7 +6,7 @@ extends Resource
 ## lengths (e.g. after a GLB swap) never change combat timing.
 
 enum Height { HIGH, MID, LOW, AIR } ## LOW bypasses block; AIR blocks as HIGH
-enum HitboxType { HAND, FOOT }
+enum HitboxType { HAND, FOOT, HAND_L, FOOT_L } ## which limb the hitbox tracks
 
 @export var id := &""
 @export var startup_frames := 6
