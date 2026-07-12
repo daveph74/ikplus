@@ -68,45 +68,73 @@ func play_attack(attack: AttackData) -> void:
 # --- placeholder rig -------------------------------------------------------
 
 
+## Joint pivots (names, parents, positions) are LOAD-BEARING — animations,
+## attachment reach, and the combat smoke asserts all key off them. Everything
+## hanging off a pivot is pure cosmetics and safe to restyle. Axes: the fighter
+## faces +X, so box dims read (depth, height, width).
 func _build_placeholder_rig() -> void:
 	var rig := get_node("Rig") as Node3D
 	var gi := _mat(gi_color)
+	var gi_dark := _mat(gi_color.darkened(0.22))
+	var trim := _mat(gi_color.lightened(0.35))
 	var belt := _mat(belt_color)
 	var skin := _mat(skin_color)
+	var hair := _mat(Color(0.13, 0.1, 0.09))
 
 	var hips := _pivot(rig, "Hips", REST_HIPS_POS)
-	_box(hips, Vector3(0.3, 0.16, 0.24), Vector3.ZERO, gi)
+	_box(hips, Vector3(0.22, 0.16, 0.30), Vector3.ZERO, gi_dark)
 
 	var torso := _pivot(hips, "Torso", Vector3(0, 0.09, 0))
-	_box(torso, Vector3(0.4, 0.5, 0.26), Vector3(0, 0.3, 0), gi)
-	_box(torso, Vector3(0.34, 0.07, 0.22), Vector3(0, 0.03, 0), belt)
+	_box(torso, Vector3(0.25, 0.36, 0.44), Vector3(0, 0.36, 0), gi) # chest — wider than deep
+	_box(torso, Vector3(0.21, 0.22, 0.32), Vector3(0, 0.12, 0), gi) # waist taper
+	# Gi lapels: a V crossing the chest's front (+X) face.
+	_box(torso, Vector3(0.02, 0.36, 0.07), Vector3(0.135, 0.36, 0.08), trim, Vector3(25, 0, 0))
+	_box(torso, Vector3(0.02, 0.36, 0.07), Vector3(0.135, 0.36, -0.08), trim, Vector3(-25, 0, 0))
+	# Belt with front knot and hanging ends.
+	_box(torso, Vector3(0.24, 0.08, 0.34), Vector3(0, 0.02, 0), belt)
+	_box(torso, Vector3(0.08, 0.08, 0.10), Vector3(0.15, 0.02, 0), belt)
+	_box(torso, Vector3(0.03, 0.20, 0.045), Vector3(0.15, -0.10, 0.035), belt)
+	_box(torso, Vector3(0.03, 0.20, 0.045), Vector3(0.15, -0.10, -0.035), belt)
+	# Shoulder pads where the sleeves meet the jacket.
+	_sphere(torso, 0.085, Vector3(0, 0.5, 0.26), gi)
+	_sphere(torso, 0.085, Vector3(0, 0.5, -0.26), gi)
+	_cylinder(torso, 0.055, 0.10, Vector3(0, 0.56, 0), skin) # neck
 
 	var head := _pivot(torso, "Head", Vector3(0, 0.62, 0))
-	_sphere(head, 0.13, Vector3(0, 0.08, 0), skin)
+	_sphere(head, 0.125, Vector3(0, 0.08, 0), skin)
+	_hemisphere(head, 0.135, Vector3(0, 0.105, 0), hair) # hair cap
+	_cylinder(head, 0.132, 0.05, Vector3(0, 0.085, 0), belt) # headband in belt color
+	_box(head, Vector3(0.03, 0.035, 0.035), Vector3(0.125, 0.05, 0), skin) # nose hint
 
 	var shoulder_r := _pivot(torso, "ShoulderR", Vector3(0, 0.5, 0.26))
-	_capsule(shoulder_r, 0.065, 0.5, Vector3(0, -0.24, 0), gi)
+	_capsule(shoulder_r, 0.07, 0.26, Vector3(0, -0.14, 0), gi) # gi sleeve (3/4 length)
+	_capsule(shoulder_r, 0.055, 0.24, Vector3(0.025, -0.40, 0), skin, Vector3(0, 0, 8)) # bare forearm
 	var hand_r := _pivot(shoulder_r, "AttachHandR", Vector3(0, -0.52, 0))
 	_sphere(hand_r, 0.07, Vector3.ZERO, skin)
 
 	var shoulder_l := _pivot(torso, "ShoulderL", Vector3(0, 0.5, -0.26))
-	_capsule(shoulder_l, 0.065, 0.5, Vector3(0, -0.24, 0), gi)
+	_capsule(shoulder_l, 0.07, 0.26, Vector3(0, -0.14, 0), gi)
+	_capsule(shoulder_l, 0.055, 0.24, Vector3(0.025, -0.40, 0), skin, Vector3(0, 0, 8))
 	var hand_l := _pivot(shoulder_l, "HandL", Vector3(0, -0.52, 0))
 	_sphere(hand_l, 0.07, Vector3.ZERO, skin)
 
 	var hip_r := _pivot(hips, "HipR", Vector3(0, -0.06, 0.1))
-	_capsule(hip_r, 0.075, 0.42, Vector3(0, -0.2, 0), gi)
+	_capsule(hip_r, 0.085, 0.40, Vector3(0, -0.19, 0), gi) # loose trouser thigh
 	var knee_r := _pivot(hip_r, "KneeR", Vector3(0, -0.42, 0))
-	_capsule(knee_r, 0.065, 0.4, Vector3(0, -0.19, 0), gi)
+	_capsule(knee_r, 0.07, 0.30, Vector3(0, -0.155, 0), gi) # trouser shin
+	_cylinder(knee_r, 0.075, 0.05, Vector3(0, -0.30, 0), gi_dark) # cuff
+	_capsule(knee_r, 0.045, 0.10, Vector3(0, -0.37, 0), skin) # bare ankle
 	var foot_r := _pivot(knee_r, "AttachFootR", Vector3(0, -0.42, 0))
-	_box(foot_r, Vector3(0.22, 0.07, 0.1), Vector3(0.05, 0.03, 0), skin)
+	_box(foot_r, Vector3(0.22, 0.07, 0.10), Vector3(0.05, 0.03, 0), skin)
 
 	var hip_l := _pivot(hips, "HipL", Vector3(0, -0.06, -0.1))
-	_capsule(hip_l, 0.075, 0.42, Vector3(0, -0.2, 0), gi)
+	_capsule(hip_l, 0.085, 0.40, Vector3(0, -0.19, 0), gi)
 	var knee_l := _pivot(hip_l, "KneeL", Vector3(0, -0.42, 0))
-	_capsule(knee_l, 0.065, 0.4, Vector3(0, -0.19, 0), gi)
+	_capsule(knee_l, 0.07, 0.30, Vector3(0, -0.155, 0), gi)
+	_cylinder(knee_l, 0.075, 0.05, Vector3(0, -0.30, 0), gi_dark)
+	_capsule(knee_l, 0.045, 0.10, Vector3(0, -0.37, 0), skin)
 	var foot_l := _pivot(knee_l, "FootL", Vector3(0, -0.42, 0))
-	_box(foot_l, Vector3(0.22, 0.07, 0.1), Vector3(0.05, 0.03, 0), skin)
+	_box(foot_l, Vector3(0.22, 0.07, 0.10), Vector3(0.05, 0.03, 0), skin)
 
 
 # --- procedural animations -------------------------------------------------
@@ -681,19 +709,22 @@ func _pivot(parent: Node3D, pivot_name: String, pos: Vector3) -> Node3D:
 	return n
 
 
-func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> void:
+func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material, rot_deg := Vector3.ZERO) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	mesh.material = mat
-	_mesh_instance(parent, mesh, pos)
+	_mesh_instance(parent, mesh, pos, rot_deg)
 
 
-func _capsule(parent: Node3D, radius: float, total_height: float, pos: Vector3, mat: Material) -> void:
+func _capsule(
+	parent: Node3D, radius: float, total_height: float, pos: Vector3, mat: Material,
+	rot_deg := Vector3.ZERO
+) -> void:
 	var mesh := CapsuleMesh.new()
 	mesh.radius = radius
 	mesh.height = total_height + 2.0 * radius
 	mesh.material = mat
-	_mesh_instance(parent, mesh, pos)
+	_mesh_instance(parent, mesh, pos, rot_deg)
 
 
 func _sphere(parent: Node3D, radius: float, pos: Vector3, mat: Material) -> void:
@@ -704,8 +735,28 @@ func _sphere(parent: Node3D, radius: float, pos: Vector3, mat: Material) -> void
 	_mesh_instance(parent, mesh, pos)
 
 
-func _mesh_instance(parent: Node3D, mesh: Mesh, pos: Vector3) -> void:
+func _hemisphere(parent: Node3D, radius: float, pos: Vector3, mat: Material) -> void:
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius # is_hemisphere halves the height
+	mesh.is_hemisphere = true
+	mesh.material = mat
+	_mesh_instance(parent, mesh, pos)
+
+
+func _cylinder(parent: Node3D, radius: float, height: float, pos: Vector3, mat: Material) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.bottom_radius = radius
+	mesh.top_radius = radius
+	mesh.height = height
+	mesh.material = mat
+	_mesh_instance(parent, mesh, pos)
+
+
+func _mesh_instance(parent: Node3D, mesh: Mesh, pos: Vector3, rot_deg := Vector3.ZERO) -> void:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.position = pos
+	if rot_deg != Vector3.ZERO:
+		mi.rotation_degrees = rot_deg
 	parent.add_child(mi)
