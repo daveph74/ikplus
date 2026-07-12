@@ -33,7 +33,19 @@ fail the `--check-only` parse gate (project convention, see `tools/verify.sh`).
 
 ## GLB-swap contract (replacing the placeholder fighter)
 
-Mount a rig scene (e.g. an imported GLB) at **`Fighter/Visual/Rig`**, replacing the node. Rules:
+**Preferred path (adapter does the heavy lifting):** set `rig_scene` on a `FighterConfig` (or on
+`FighterVisual` directly) to the imported character scene. At spawn the adapter mounts it as
+`Rig`, yaws it by `rig_facing_deg` (default 90° — glTF characters typically face +Z, the contract
+is +X), uniformly scales it to `target_height` (1.75 m) with feet on the floor, resolves foreign
+clip names through `CLIP_ALIASES` (e.g. `Punching` → `punch_high`, `Walking_Backwards` →
+`walk_back`; unmatched moves simply play without animation), and auto-creates missing
+`AttachHandR`/`AttachFootR` as `BoneAttachment3D` by bone-name heuristics (`RightHand`,
+`Hand_R`, `mixamorig_RightHand`, …). The whole path is regression-tested against
+`test/fixtures/foreign_rig.tscn`, a Mixamo-style fixture. Note: Godot forbids `:` in bone
+names — the glTF importer sanitizes `mixamorig:Hips` to `mixamorig_Hips`; the heuristics
+ignore punctuation entirely.
+
+**Manual path** — mount a rig scene at **`Fighter/Visual/Rig`**, replacing the node. Rules:
 
 - **Discovery, not fixed paths:** `fighter.gd` and `fighter_visual.gd` resolve the
   `AnimationPlayer` and the `AttachHandR` / `AttachFootR` attachment nodes via

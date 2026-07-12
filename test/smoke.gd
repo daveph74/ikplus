@@ -163,6 +163,61 @@ func _run(main: Main) -> void:
 	await _ticks(30)
 	_check(_hit_events.is_empty(), "out-of-range punch whiffs (no event)")
 
+	# --- GLB adapter: foreign skeleton/clip-name rig (docs/architecture.md) ---
+	# A Mixamo-style fixture with foreign bone and clip names, packed like an
+	# imported GLB: the adapter must auto-create the attachment nodes, resolve
+	# canonical clips through CLIP_ALIASES, normalize the oversized rig, and the
+	# fighter must remain a fully functional combat victim.
+	var glb_dummy := _spawn_glb_dummy(main, player.position.x + 0.9)
+	await _ticks(3)
+	var glb_visual := glb_dummy.get_node("Visual") as FighterVisual
+	_check(
+		glb_visual.find_child("AttachHandR", true, false) is BoneAttachment3D,
+		"foreign rig: AttachHandR auto-created on the skeleton"
+	)
+	_check(
+		glb_visual.find_child("AttachFootR", true, false) is BoneAttachment3D,
+		"foreign rig: AttachFootR auto-created on the skeleton"
+	)
+	_check(
+		glb_visual.resolve_clip(&"punch_high") == &"Punching",
+		"foreign rig: punch_high resolves to Punching"
+	)
+	_check(
+		glb_visual.resolve_clip(&"walk_back") == &"Walking_Backwards",
+		"foreign rig: walk_back resolves to Walking_Backwards"
+	)
+	_check(
+		glb_visual.resolve_clip(&"victory") == &"Victory_Cheer",
+		"foreign rig: victory resolves to Victory_Cheer"
+	)
+	_check(
+		glb_visual.resolve_clip(&"sweep") == &"",
+		"foreign rig: unmatched canonical resolves empty (graceful no-anim)"
+	)
+	var glb_rig := glb_visual.get_node("Rig") as Node3D
+	_check(glb_rig.scale.x < 0.99, "foreign rig: oversized rig auto-scaled toward target height")
+	_hit_events.clear()
+	Input.action_press(&"punch")
+	await _ticks(2)
+	Input.action_release(&"punch")
+	await _until(
+		func() -> bool: return _hit_events.size() > 0, 30, "punch registers on the GLB-rigged dummy"
+	)
+	if _hit_events.size() > 0:
+		_check(_hit_events[0][1] == glb_dummy, "foreign rig: victim is the GLB dummy")
+		_check(int(_hit_events[0][2]) == CombatResolver.HitResult.HIT, "foreign rig: result is HIT")
+	await _until(
+		func() -> bool: return glb_dummy.state == Fighter.State.IDLE and glb_dummy.hitstop_frames == 0,
+		180, "GLB dummy recovers to IDLE"
+	)
+	await _until(
+		func() -> bool: return player.state == Fighter.State.IDLE, 60,
+		"attacker recovers after the GLB-dummy hit"
+	)
+	glb_dummy.queue_free()
+	await _ticks(2)
+
 	# --- step 5a: facing block ---
 	# Dummy's own facing never updates: TargetingSystem only manages fighters with
 	# a non-null config (Main's spawned FighterConfigs), so this config-less test
@@ -538,6 +593,25 @@ func _run(main: Main) -> void:
 
 
 # --- helpers ----------------------------------------------------------------
+
+
+## Same passive-stub pattern as _spawn_dummy, but the Visual mounts the foreign
+## fixture rig (test/fixtures/foreign_rig.tscn — Mixamo-style bone names,
+## foreign clip names, no attachments, oversized mesh; a file-based scene
+## because PackedScene.pack() does NOT serialize programmatic Skeleton3D bones,
+## while imported/saved scenes carry them as bones/N/* properties) through the
+## same rig_scene path a real GLB would use.
+func _spawn_glb_dummy(parent: Node, x: float) -> Fighter:
+	var dummy: Fighter = FighterScene.instantiate()
+	var player_ctrl: Node = dummy.get_node("Controller")
+	player_ctrl.free()
+	var stub := FighterController.new()
+	stub.name = "Controller"
+	dummy.add_child(stub)
+	(dummy.get_node("Visual") as FighterVisual).rig_scene = preload("res://test/fixtures/foreign_rig.tscn")
+	parent.add_child(dummy)
+	dummy.position = Vector3(x, 0, 0)
+	return dummy
 
 
 func _spawn_dummy(parent: Node, x: float) -> Fighter:

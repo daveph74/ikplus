@@ -8,3 +8,4 @@ extends Resource
 @export var is_player := false
 @export var ai_profile: AIProfile = null
 @export var spawn_x := 0.0
+@export var rig_scene: PackedScene = null ## imported GLB character; null = procedural placeholder

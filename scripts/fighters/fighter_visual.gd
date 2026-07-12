@@ -30,22 +30,77 @@ const GUARD_L := 0.9
 @export var belt_color := Color(0.16, 0.16, 0.16)
 @export var skin_color := Color(0.85, 0.66, 0.5)
 
+## GLB adapter knobs (docs/architecture.md "GLB-swap contract"): rig_scene is an
+## imported character scene mounted as Rig at runtime (per-fighter via
+## FighterConfig). Foreign rigs are auto-normalized: height scaled to
+## target_height, yawed by rig_facing_deg (glTF characters usually face +Z; our
+## contract is +X), clips resolved through CLIP_ALIASES, and missing
+## AttachHandR/AttachFootR created as BoneAttachment3D by bone-name heuristics.
+@export var rig_scene: PackedScene = null
+@export var rig_facing_deg := 90.0
+@export var target_height := 1.75
+
+## canonical clip -> candidate foreign names (normalized: lowercase alnum only),
+## tried in order — exact match first across all clips, then containment.
+const CLIP_ALIASES := {
+	&"idle": ["idle", "fightidle", "fightingidle", "stance", "breathingidle"],
+	&"walk_fwd": ["walkfwd", "walkforward", "walkingforward", "walking", "walk"],
+	&"walk_back": ["walkback", "walkbackward", "walkingbackward", "walkingbackwards", "backwalk"],
+	&"jump": ["jump", "jumping", "jumpup"],
+	&"punch_high": ["punchhigh", "highpunch", "punching", "punch", "jab", "cross"],
+	&"punch_low": ["punchlow", "lowpunch", "bodypunch", "hook", "uppercut"],
+	&"kick_front": ["kickfront", "frontkick", "pushkick", "kicking", "kick"],
+	&"kick_round": ["kickround", "roundhouse", "roundkick", "highkick", "spinkick"],
+	&"sweep": ["sweep", "legsweep", "lowkick"],
+	&"kick_jump": ["kickjump", "jumpkick", "flyingkick", "airkick"],
+	&"block": ["block", "blocking", "guard", "defend"],
+	&"hit_react": ["hitreact", "hitreaction", "gettinghit", "lighthit", "hit", "impact"],
+	&"knockdown": ["knockdown", "knockeddown", "fallingback", "falldown", "death", "dying", "ko"],
+	&"recovery": ["recovery", "getup", "gettingup", "standup", "standingup"],
+	&"victory": ["victory", "victorycheer", "win", "cheer", "celebrate", "taunt"],
+}
+
 var _player: AnimationPlayer
+var _clip_map: Dictionary = {} ## canonical StringName -> actual clip StringName (foreign rigs only)
+var _foreign := false
 
 
 func _ready() -> void:
+	if rig_scene != null:
+		var old := get_node_or_null("Rig")
+		if old != null:
+			old.free()
+		var rig := rig_scene.instantiate()
+		rig.name = "Rig"
+		add_child(rig)
 	_player = find_child("AnimationPlayer", true, false) as AnimationPlayer
-	if _player == null:
+	_foreign = rig_scene != null or _player != null
+	if not _foreign:
 		_build_placeholder_rig()
 		_build_animation_player()
+	elif _player != null:
+		_normalize_foreign_rig()
+		_build_clip_map()
+		_ensure_attachments()
+	else:
+		push_warning("FighterVisual: rig_scene provided no AnimationPlayer — fighter will be static")
 	play_anim(&"idle")
 
 
+## Canonical name -> playable clip name. Procedural rigs are identity; foreign
+## rigs go through the alias map (&"" when nothing matched — callers no-op).
+func resolve_clip(canonical: StringName) -> StringName:
+	if not _foreign:
+		return canonical
+	return _clip_map.get(canonical, &"")
+
+
 func play_anim(anim_name: StringName, custom_speed := 1.0) -> void:
-	if _player == null or not _player.has_animation(anim_name):
+	var clip := resolve_clip(anim_name)
+	if _player == null or clip == &"" or not _player.has_animation(clip):
 		return
-	if _player.current_animation != String(anim_name):
-		_player.play(anim_name, -1.0, custom_speed)
+	if _player.current_animation != String(clip):
+		_player.play(clip, -1.0, custom_speed)
 
 
 func set_frozen(frozen: bool) -> void:
@@ -58,11 +113,108 @@ func play_attack(attack: AttackData) -> void:
 	## Retimes the clip to the attack's tick-driven duration via custom_speed
 	## (never speed_scale — that's hit-stop's knob; the two multiply). stop()
 	## first so back-to-back attacks sharing a clip restart from pose zero.
-	if _player == null or not _player.has_animation(attack.anim_name):
+	var clip := resolve_clip(attack.anim_name)
+	if _player == null or clip == &"" or not _player.has_animation(clip):
 		return
-	var clip_len := _player.get_animation(attack.anim_name).length
+	var clip_len := _player.get_animation(clip).length
 	_player.stop()
-	_player.play(attack.anim_name, -1.0, clip_len / attack.total_seconds())
+	_player.play(clip, -1.0, clip_len / attack.total_seconds())
+
+
+# --- foreign (GLB) rig adaptation -------------------------------------------
+
+
+func _normalize_foreign_rig() -> void:
+	var rig := get_node_or_null("Rig") as Node3D
+	if rig == null:
+		return
+	rig.rotation_degrees.y = rig_facing_deg
+	var aabb := _combined_aabb(rig)
+	if aabb.size.y > 0.05:
+		var s := target_height / aabb.size.y
+		rig.scale = Vector3.ONE * s
+		rig.position.y = -aabb.position.y * s # feet on the floor
+
+
+func _combined_aabb(rig: Node3D) -> AABB:
+	var into_rig := rig.global_transform.affine_inverse()
+	var merged := AABB()
+	var first := true
+	for mi: Node in rig.find_children("", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var local := (into_rig * m.global_transform) * m.get_aabb()
+		merged = local if first else merged.merge(local)
+		first = false
+	return merged
+
+
+func _build_clip_map() -> void:
+	_clip_map.clear()
+	var clips: Dictionary = {} # normalized -> actual StringName
+	for clip_name in _player.get_animation_list():
+		clips[_normalize_name(clip_name)] = StringName(clip_name)
+	for canonical: StringName in CLIP_ALIASES:
+		var found := &""
+		for candidate: String in CLIP_ALIASES[canonical]:
+			if clips.has(candidate): # exact normalized match wins
+				found = clips[candidate]
+				break
+		if found == &"":
+			for candidate: String in CLIP_ALIASES[canonical]:
+				for norm: String in clips: # containment fallback
+					if norm.contains(candidate):
+						found = clips[norm]
+						break
+				if found != &"":
+					break
+		if found != &"":
+			_clip_map[canonical] = found
+		else:
+			print("FighterVisual: no foreign clip matched '", canonical, "' — that move plays without animation")
+
+
+func _normalize_name(clip_name: String) -> String:
+	var lowered := clip_name.get_slice("/", clip_name.get_slice_count("/") - 1).to_lower()
+	var out := ""
+	for ch in lowered:
+		if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9"):
+			out += ch
+	return out
+
+
+## The combat contract needs AttachHandR/AttachFootR. A raw GLB won't have them,
+## so create BoneAttachment3D nodes on the rig's skeleton by bone-name heuristics.
+func _ensure_attachments() -> void:
+	if find_child("AttachHandR", true, false) == null:
+		_create_bone_attachment("AttachHandR", ["righthand", "handr", "rhand", "handright"])
+	if find_child("AttachFootR", true, false) == null:
+		_create_bone_attachment(
+			"AttachFootR", ["rightfoot", "footr", "rfoot", "footright", "righttoebase"]
+		)
+
+
+func _create_bone_attachment(attach_name: String, candidates: Array) -> void:
+	var skels := find_children("", "Skeleton3D", true, false)
+	if skels.is_empty():
+		push_warning("FighterVisual: no Skeleton3D — cannot create ", attach_name)
+		return
+	var skel := skels[0] as Skeleton3D
+	var bone_idx := -1
+	for candidate: String in candidates:
+		for i in skel.get_bone_count():
+			var norm := _normalize_name(skel.get_bone_name(i))
+			if norm == candidate or norm.contains(candidate):
+				bone_idx = i
+				break
+		if bone_idx >= 0:
+			break
+	if bone_idx < 0:
+		push_warning("FighterVisual: no bone matched for ", attach_name)
+		return
+	var attachment := BoneAttachment3D.new()
+	attachment.name = attach_name
+	skel.add_child(attachment)
+	attachment.bone_name = skel.get_bone_name(bone_idx)
 
 
 # --- placeholder rig -------------------------------------------------------
