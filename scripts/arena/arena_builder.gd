@@ -34,11 +34,19 @@ const DECK_GAP := 0.06
 const DECK_Z0 := -2.85
 
 
+var _pano_active := false
+
+
 func _ready() -> void:
+	# With a real panorama backdrop, the procedural DISTANT scenery (mountain
+	# cones, sun-glint patches) would double the panorama's own and float in
+	# front of it — skip those; near set-dressing still applies.
+	_pano_active = _tex(TEX_SKY) != null
 	_build_deck()
 	_build_ocean()
 	_build_rocks()
-	_build_mountains()
+	if not _pano_active:
+		_build_mountains()
 	_build_dojo()
 	_build_spectators()
 	_build_maple()
@@ -66,6 +74,10 @@ func _apply_sky_panorama() -> void:
 	var mat := PanoramaSkyMaterial.new()
 	mat.panorama = pano
 	we.environment.sky.sky_material = mat
+	# Yaw the sky so the equirect wrap seam faces away from the fixed camera
+	# (which never rotates) and the panorama's sun sits over the ocean on the
+	# camera's LEFT per docs/art-direction.md.
+	we.environment.sky_rotation.y = 1.40
 
 
 # --- deck: individual long planks, alternating warm tones, subtle gaps -----
@@ -124,7 +136,10 @@ func _build_ocean() -> void:
 
 	# Sun-glint specular path: narrow far, widening toward the camera —
 	# reads as a bright reflection lane on the water without needing real
-	# screen-space specular from the low sun.
+	# screen-space specular from the low sun. The panorama carries its own
+	# reflection lane, so skip the fake one when it's active.
+	if _pano_active:
+		return
 	var glint_mat := _mat(Color(1.0, 0.85, 0.5), true, Color(1.0, 0.75, 0.35), 1.4)
 	var glint_defs := [
 		[Vector3(-13.0, -0.32, -42.0), Vector2(0.7, 3.0)],
