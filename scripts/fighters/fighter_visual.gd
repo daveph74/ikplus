@@ -54,6 +54,17 @@ func set_frozen(frozen: bool) -> void:
 		_player.speed_scale = 0.0 if frozen else 1.0
 
 
+func play_attack(attack: AttackData) -> void:
+	## Retimes the clip to the attack's tick-driven duration via custom_speed
+	## (never speed_scale — that's hit-stop's knob; the two multiply). stop()
+	## first so back-to-back attacks sharing a clip restart from pose zero.
+	if _player == null or not _player.has_animation(attack.anim_name):
+		return
+	var clip_len := _player.get_animation(attack.anim_name).length
+	_player.stop()
+	_player.play(attack.anim_name, -1.0, clip_len / attack.total_seconds())
+
+
 # --- placeholder rig -------------------------------------------------------
 
 
@@ -110,6 +121,13 @@ func _build_animation_player() -> void:
 	lib.add_animation(&"walk_fwd", _anim_walk(false))
 	lib.add_animation(&"walk_back", _anim_walk(true))
 	lib.add_animation(&"jump", _anim_jump())
+	lib.add_animation(&"hit_react", _anim_hit_react())
+	# One clip per DISTINCT anim_name; clips are generated at that attack's
+	# total_seconds() with the strike pose exactly at startup_frames/60.
+	# Attacks sharing a clip get retimed by play_attack()'s custom_speed.
+	for attack: AttackData in AttackRegistry.all():
+		if not lib.has_animation(attack.anim_name):
+			lib.add_animation(attack.anim_name, _anim_strike(attack))
 	_player.add_animation_library(&"", lib)
 
 
@@ -239,6 +257,105 @@ func _anim_jump() -> Animation:
 			[0.45, Vector3(0, 0, -0.2)],
 		],
 	}, [])
+
+
+func _anim_hit_react() -> Animation:
+	return _make_anim(0.35, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, 0.3)],
+			[0.2, Vector3(0, 0, 0.12)],
+			[0.35, Vector3(0, 0, -0.06)],
+		],
+		"Rig/Hips/Torso/Head": [
+			[0.0, Vector3(0, 0, 0.25)],
+			[0.35, Vector3.ZERO],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, 0.4)],
+			[0.35, Vector3(0, 0, GUARD_R)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, 0.3)],
+			[0.35, Vector3(0, 0, GUARD_L)],
+		],
+		"Rig/Hips/HipR/KneeR": [[0.0, Vector3(0, 0, -0.25)]],
+		"Rig/Hips/HipL/KneeL": [[0.0, Vector3(0, 0, -0.2)]],
+	}, [])
+
+
+func _anim_strike(attack: AttackData) -> Animation:
+	var total := attack.total_seconds()
+	var t_hit := attack.startup_frames / 60.0
+	var t_hold := (attack.startup_frames + attack.active_frames) / 60.0
+	if attack.hitbox_type == AttackData.HitboxType.HAND:
+		return _make_anim(total, false, {
+			"Rig/Hips/Torso": [
+				[0.0, Vector3(0, 0, -0.06)],
+				[t_hit * 0.5, Vector3(0, 0.15, -0.02)],
+				[t_hit, Vector3(0, -0.35, -0.12)],
+				[t_hold, Vector3(0, -0.35, -0.12)],
+				[total, Vector3(0, 0, -0.06)],
+			],
+			"Rig/Hips/Torso/ShoulderR": [
+				[0.0, Vector3(0, 0, GUARD_R)],
+				[t_hit * 0.5, Vector3(0, 0, 0.7)],
+				[t_hit, Vector3(0, 0, 1.62)],
+				[t_hold, Vector3(0, 0, 1.62)],
+				[total, Vector3(0, 0, GUARD_R)],
+			],
+			"Rig/Hips/Torso/ShoulderL": [
+				[0.0, Vector3(0, 0, GUARD_L)],
+				[t_hit, Vector3(0, 0, 0.6)],
+				[total, Vector3(0, 0, GUARD_L)],
+			],
+			"Rig/Hips/HipR": [[0.0, Vector3(0, 0, 0.06)]],
+			"Rig/Hips/HipR/KneeR": [[0.0, Vector3(0, 0, -0.15)]],
+			"Rig/Hips/HipL": [[0.0, Vector3(0, 0, -0.02)]],
+			"Rig/Hips/HipL/KneeL": [[0.0, Vector3(0, 0, -0.1)]],
+		}, [
+			[0.0, REST_HIPS_POS],
+			[t_hit, REST_HIPS_POS + Vector3(0.06, -0.02, 0)],
+			[total, REST_HIPS_POS],
+		])
+	# FOOT strikes (front kick family; sweep/roundhouse get bespoke poses in step 5)
+	return _make_anim(total, false, {
+		"Rig/Hips/Torso": [
+			[0.0, Vector3(0, 0, -0.06)],
+			[t_hit, Vector3(0, 0, 0.25)],
+			[t_hold, Vector3(0, 0, 0.25)],
+			[total, Vector3(0, 0, -0.06)],
+		],
+		"Rig/Hips/Torso/ShoulderR": [
+			[0.0, Vector3(0, 0, GUARD_R)],
+			[t_hit, Vector3(0, 0, 0.5)],
+			[total, Vector3(0, 0, GUARD_R)],
+		],
+		"Rig/Hips/Torso/ShoulderL": [
+			[0.0, Vector3(0, 0, GUARD_L)],
+			[t_hit, Vector3(0, 0, 1.3)],
+			[total, Vector3(0, 0, GUARD_L)],
+		],
+		"Rig/Hips/HipR": [
+			[0.0, Vector3.ZERO],
+			[t_hit * 0.5, Vector3(0, 0, -0.2)],
+			[t_hit, Vector3(0, 0, 1.35)],
+			[t_hold, Vector3(0, 0, 1.35)],
+			[total, Vector3.ZERO],
+		],
+		"Rig/Hips/HipR/KneeR": [
+			[0.0, Vector3(0, 0, -0.15)],
+			[t_hit * 0.5, Vector3(0, 0, -1.2)],
+			[t_hit, Vector3(0, 0, -0.05)],
+			[t_hold, Vector3(0, 0, -0.05)],
+			[total, Vector3(0, 0, -0.15)],
+		],
+		"Rig/Hips/HipL": [[0.0, Vector3(0, 0, -0.05)]],
+		"Rig/Hips/HipL/KneeL": [[0.0, Vector3(0, 0, -0.2)]],
+	}, [
+		[0.0, REST_HIPS_POS],
+		[t_hit, REST_HIPS_POS + Vector3(0.04, -0.03, 0)],
+		[total, REST_HIPS_POS],
+	])
 
 
 # --- mesh helpers ----------------------------------------------------------

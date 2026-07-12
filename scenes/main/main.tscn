@@ -1,7 +1,8 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/match/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/fighters/fighter.tscn" id="2_fighter"]
+[ext_resource type="Script" path="res://scripts/combat/combat_resolver.gd" id="3_resolver"]
 
 [sub_resource type="BoxMesh" id="ground_mesh"]
 size = Vector3(20, 0.5, 6)
@@ -36,3 +37,7 @@ transform = Transform3D(1, 0, 0, 0, 0.996802, 0.0799147, 0, -0.0799147, 0.996802
 fov = 25.0
 
 [node name="PlayerFighter" parent="." instance=ExtResource("2_fighter")]
+
+[node name="CombatResolver" type="Node" parent="." groups=["combat_resolver"]]
+process_physics_priority = 100
+script = ExtResource("3_resolver")
