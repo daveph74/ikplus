@@ -44,7 +44,7 @@ var _you_tags: Array[Label] = []
 var _score_labels: Array[Label] = []
 var _segments: Array = [] # each entry: Array[ColorRect], 6 long
 var _secondary_strips: Array[ColorRect] = []
-var _portraits: Array[ColorRect] = []
+var _portraits: Array[Control] = [] # ColorRect fallback, swapped for a TextureRect when a portrait file exists
 
 var _cue_label: Label
 var _time_value_label: Label
@@ -139,7 +139,7 @@ func _update_panels() -> void:
 		_name_labels[i].add_theme_color_override("font_color", cfg.gi_color)
 		_you_tags[i].visible = cfg.is_player
 		if _portraits[i] != null:
-			_portraits[i].color = cfg.gi_color
+			_apply_portrait(i, cfg)
 
 		var score := int(_match_manager.scores.get(f, 0)) if _match_manager != null else 0
 		_score_labels[i].text = str(score)
@@ -158,6 +158,33 @@ func _update_panels() -> void:
 			and not _match_manager.sudden_death_leaders.has(f)
 		)
 		_panel_boxes[i].modulate = EXCLUDED_MODULATE if excluded else Color.WHITE
+
+
+## Portrait chips prefer res://assets/ui/portraits/<display_name lowercase>.png
+## (p1.png/p2.png/p3.png — drop files in without code changes, same convention
+## as assets/audio); the gi-colored rect is the fallback.
+func _apply_portrait(i: int, cfg: FighterConfig) -> void:
+	var chip: Control = _portraits[i]
+	if chip is TextureRect:
+		return # texture already installed
+	var path := "res://assets/ui/portraits/%s.png" % cfg.display_name.to_lower()
+	if ResourceLoader.exists(path):
+		var tex := load(path) as Texture2D
+		if tex != null:
+			var rect := TextureRect.new()
+			rect.custom_minimum_size = chip.custom_minimum_size
+			rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			rect.texture = tex
+			var parent := chip.get_parent()
+			var idx := chip.get_index()
+			parent.remove_child(chip)
+			chip.queue_free()
+			parent.add_child(rect)
+			parent.move_child(rect, idx)
+			_portraits[i] = rect
+			return
+	(chip as ColorRect).color = cfg.gi_color
 
 
 func _update_sudden_death_flash() -> void:
@@ -289,12 +316,13 @@ func _build_panel(with_portrait: bool) -> PanelContainer:
 	header.add_theme_constant_override("separation", 6)
 	vbox.add_child(header)
 
-	var portrait: ColorRect = null
+	var portrait: Control = null
 	if with_portrait:
-		portrait = ColorRect.new()
-		portrait.custom_minimum_size = Vector2(28, 28)
-		portrait.color = Color(0.5, 0.5, 0.5)
-		header.add_child(portrait)
+		var chip := ColorRect.new()
+		chip.custom_minimum_size = Vector2(28, 28)
+		chip.color = Color(0.5, 0.5, 0.5)
+		header.add_child(chip)
+		portrait = chip
 	_portraits.append(portrait)
 
 	var name_col := VBoxContainer.new()

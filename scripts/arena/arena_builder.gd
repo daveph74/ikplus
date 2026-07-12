@@ -15,6 +15,14 @@ extends Node3D
 
 const ARENA_HALF_W := 7.0 ## kept in sync with Fighter.ARENA_HALF_W
 
+# Optional generated-texture hooks (docs/architecture.md "Replacing placeholder
+# art & audio"): when a file is absent the procedural flat-color look below
+# remains — drop PNGs into assets/textures/ without code changes.
+const TEX_DECK := "res://assets/textures/deck_planks.png"
+const TEX_BANNER := "res://assets/textures/banner.png"
+const TEX_LANTERN := "res://assets/textures/lantern_paper.png"
+const TEX_SKY := "res://assets/textures/sky_panorama.png"
+
 # --- deck ------------------------------------------------------------------
 const DECK_TONES := [
 	Color(0.55, 0.37, 0.22), Color(0.47, 0.31, 0.18), Color(0.60, 0.42, 0.26)
@@ -37,6 +45,27 @@ func _ready() -> void:
 	_build_lanterns_and_monuments()
 	_build_banners()
 	_build_railing()
+	_apply_sky_panorama()
+
+
+func _tex(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		return load(path) as Texture2D
+	return null
+
+
+## Swaps the ProceduralSkyMaterial for a PanoramaSkyMaterial when a generated
+## equirectangular panorama exists; the DirectionalLight sun is unaffected.
+func _apply_sky_panorama() -> void:
+	var pano := _tex(TEX_SKY)
+	if pano == null:
+		return
+	var we := get_node_or_null(^"WorldEnvironment") as WorldEnvironment
+	if we == null or we.environment == null or we.environment.sky == null:
+		return
+	var mat := PanoramaSkyMaterial.new()
+	mat.panorama = pano
+	we.environment.sky.sky_material = mat
 
 
 # --- deck: individual long planks, alternating warm tones, subtle gaps -----
@@ -46,9 +75,14 @@ func _build_deck() -> void:
 	var deck := Node3D.new()
 	deck.name = "Deck"
 	add_child(deck)
+	# Wood grain rides triplanar mapping so every plank box samples the texture
+	# continuously in world space; the per-plank albedo_color tones multiply the
+	# texture, so the alternating boards stay visible.
+	var wood := _tex(TEX_DECK)
 	for i in DECK_PLANKS:
 		var z := DECK_Z0 + i * (DECK_PLANK_WIDTH + DECK_GAP)
 		var mat := _mat(DECK_TONES[i % DECK_TONES.size()], false, Color.BLACK, 0.0, 0.05, 0.55)
+		_apply_wood(mat, wood)
 		_box(deck, Vector3(DECK_LENGTH, 0.08, DECK_PLANK_WIDTH), Vector3(0, -0.04, z), mat)
 
 	# Foreground filler: the camera roams well past the last plank's front
@@ -58,10 +92,19 @@ func _build_deck() -> void:
 	var z_front := DECK_Z0 + DECK_PLANKS * (DECK_PLANK_WIDTH + DECK_GAP)
 	var filler_len := 40.0
 	var filler_mat := _mat(DECK_TONES[0], false, Color.BLACK, 0.0, 0.05, 0.55)
+	_apply_wood(filler_mat, wood)
 	_box(
 		deck, Vector3(DECK_LENGTH, 0.08, filler_len),
 		Vector3(0, -0.04, z_front + filler_len * 0.5), filler_mat
 	)
+
+
+func _apply_wood(mat: StandardMaterial3D, wood: Texture2D) -> void:
+	if wood == null:
+		return
+	mat.albedo_texture = wood
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
 
 
 # --- ocean: far left/behind, low sun glint path, rock outcrops ------------
@@ -153,6 +196,10 @@ func _build_dojo() -> void:
 	# Kept LIT (not unshaded) with a modest emission so bloom doesn't blow it
 	# into a giant blob at this software-rendered resolution.
 	var lantern_mat := _mat(Color(0.95, 0.6, 0.25), false, Color(1.0, 0.55, 0.15), 1.2)
+	var paper := _tex(TEX_LANTERN)
+	if paper != null:
+		lantern_mat.albedo_texture = paper
+		lantern_mat.albedo_color = Color(1.0, 0.92, 0.8) # near-white: let the paper texture carry the hue
 	var cord_mat := _mat(Color(0.1, 0.1, 0.1))
 	_capsule(dojo, 0.06, 0.4, Vector3(5.0, 2.9, -3.6), cord_mat)
 	var lantern := SphereMesh.new()
@@ -235,10 +282,17 @@ func _build_banners() -> void:
 	# warm sunset key light (a lit material desaturated toward brown here).
 	var cloth_mat := _mat(Color(0.14, 0.11, 0.32), true)
 	var glyph_mat := _mat(Color(0.85, 0.83, 0.78), true)
+	# A generated banner design carries its own glyph column — skip the
+	# procedural glyph block and let the texture cover the cloth face.
+	var banner_tex := _tex(TEX_BANNER)
+	if banner_tex != null:
+		cloth_mat.albedo_color = Color.WHITE
+		cloth_mat.albedo_texture = banner_tex
 	for x in [-6.5, -2.2, 2.2, 6.5]:
 		_cylinder(group, 0.05, 3.4, Vector3(x, 1.7, -7.0), pole_mat)
 		_box(group, Vector3(0.55, 2.5, 0.04), Vector3(x + 0.3, 1.9, -7.0), cloth_mat)
-		_box(group, Vector3(0.26, 0.42, 0.05), Vector3(x + 0.3, 1.75, -6.98), glyph_mat)
+		if banner_tex == null:
+			_box(group, Vector3(0.26, 0.42, 0.05), Vector3(x + 0.3, 1.75, -6.98), glyph_mat)
 
 
 # --- railing along the deck's back edge ------------------------------------

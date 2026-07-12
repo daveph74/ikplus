@@ -52,11 +52,23 @@ Mount a rig scene (e.g. an imported GLB) at **`Fighter/Visual/Rig`**, replacing 
 - Facing is applied by rotating `Visual` (`rotation.y = 0 / PI`); the rig must be authored
   facing **+X**.
 
-## Replacing placeholder audio
+## Replacing placeholder art & audio
 
-Drop WAV files in `assets/audio/` named `punch, kick, block, knockdown, round_start, victory`
-(`.wav`); `AudioManager` prefers files over its synthesized fallbacks. Looping streams must set
-`loop_end` explicitly (an `AudioStreamWAV` default of 0 silently disables the loop).
+Every hook below prefers a file when it exists and falls back to the procedural placeholder
+when it doesn't — no code changes to swap assets in:
+
+| Asset | Drop file at |
+|---|---|
+| Sound effects | `assets/audio/{punch,kick,block,knockdown,round_start,victory}.wav` |
+| Looped ambience | `assets/audio/ambience.wav` (loop points are forced on at load) |
+| HUD portraits | `assets/ui/portraits/{p1,p2,p3}.png` (keyed by FighterConfig display_name, lowercased) |
+| Deck wood grain | `assets/textures/deck_planks.png` (tileable; applied triplanar, tone-tinted per plank) |
+| Banner cloth | `assets/textures/banner.png` (vertical design incl. glyphs; replaces the glyph block) |
+| Paper lantern | `assets/textures/lantern_paper.png` |
+| Sky | `assets/textures/sky_panorama.png` (equirectangular; swaps ProceduralSky → PanoramaSky) |
+
+Synthesized-audio loop trap: an `AudioStreamWAV` with `loop_end = 0` (the default) silently
+plays once — looping streams must set `loop_begin`/`loop_end` explicitly.
 
 ## Verification lanes
 

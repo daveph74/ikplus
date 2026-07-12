@@ -40,7 +40,7 @@ func _ready() -> void:
 
 	_ambience_player = AudioStreamPlayer.new()
 	_ambience_player.name = "AmbiencePlayer"
-	_ambience_player.stream = _gen_ambience()
+	_ambience_player.stream = _load_or_gen_ambience()
 	add_child(_ambience_player)
 
 	var events := get_node(^"/root/GameEvents")
@@ -169,6 +169,30 @@ func _gen_victory() -> PackedFloat32Array:
 	_append_tone(samples, 554.0, 0.1)
 	_append_tone(samples, 659.0, 0.1)
 	return samples
+
+
+## Ambience prefers res://assets/audio/ambience.wav (same drop-in convention as
+## the sfx). An imported WAV's loop settings live in its import options, not
+## the file, so a loaded 8/16-bit stream gets loop points forced on here —
+## compressed formats (IMA-ADPCM/QOA) are returned as imported.
+func _load_or_gen_ambience() -> AudioStreamWAV:
+	var path := "res://assets/audio/ambience.wav"
+	if ResourceLoader.exists(path):
+		var loaded: Resource = load(path)
+		if loaded is AudioStreamWAV:
+			var stream := (loaded as AudioStreamWAV).duplicate() as AudioStreamWAV
+			var bytes_per_frame := 0
+			match stream.format:
+				AudioStreamWAV.FORMAT_16_BITS:
+					bytes_per_frame = 2
+				AudioStreamWAV.FORMAT_8_BITS:
+					bytes_per_frame = 1
+			if bytes_per_frame > 0:
+				stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+				stream.loop_begin = 0
+				stream.loop_end = stream.data.size() / (bytes_per_frame * (2 if stream.stereo else 1))
+			return stream
+	return _gen_ambience()
 
 
 ## ~2 s of low-pass-filtered noise with a slow amplitude swell ("gentle
