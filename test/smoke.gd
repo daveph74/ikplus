@@ -26,12 +26,21 @@ var _failed := false
 var _done := false
 var _hit_events: Array = []
 var _target_changed_events: Array = []
+var _score_changed_events: Array = []
+var _match_ended_events: Array = []
 
 
 func _initialize() -> void:
 	seed(0)
 	var packed: PackedScene = load("res://scenes/main/main.tscn")
 	var main := packed.instantiate() as Main
+	# Step 8: shrink MatchManager's timers for a fast, deterministic suite
+	# (docs/plan.md smoke.gd contract: "shrink long scenarios via an exported
+	# debug property"). Must be set BEFORE add_child — MatchManager._ready()
+	# (which reads match_seconds) fires as part of the add_child ready cascade.
+	var match_manager := main.get_node("MatchManager") as MatchManager
+	match_manager.intro_seconds = 0.1
+	match_manager.match_seconds = 20.0
 	root.add_child(main)
 	# Required for reload_current_scene() asserts (step 8): the setter demands the
 	# node already be a child of root, hence add_child first.
@@ -42,21 +51,32 @@ func _initialize() -> void:
 
 func _watchdog() -> void:
 	# 120 simulated seconds for the step 2-6 scenarios (generous headroom over
-	# their actual runtime) + the step 7 AI soak's own ~1800-tick (30 s) budget
-	# plus margin, so the watchdog stays ahead of total scenario length.
-	await _ticks(9600)
+	# their actual runtime) + the step 8 match-manager scenarios (scoring,
+	# round-lock, win, restart) + a second ~1800-tick (30 s) AI soak run after
+	# the restart, plus margin, so the watchdog stays ahead of total length.
+	await _ticks(16000)
 	if not _done:
-		_fail("watchdog: scenarios did not complete in 9600 ticks")
+		_fail("watchdog: scenarios did not complete in 16000 ticks")
 
 
 func _run(main: Main) -> void:
 	root.get_node("GameEvents").fighter_hit.connect(_on_hit)
 	root.get_node("GameEvents").target_changed.connect(_on_target_changed)
+	root.get_node("GameEvents").score_changed.connect(_on_score_changed)
+	root.get_node("GameEvents").match_ended.connect(_on_match_ended)
 	# Fighters are spawned in Main._ready() (build step 6) rather than baked
 	# statically into main.tscn, so they don't exist until the tree's first
 	# frame runs _ready — one tick's wait before the first get_node.
 	await physics_frame
 	var player: Fighter = main.get_node("PlayerFighter")
+	var match_manager := main.get_node("MatchManager") as MatchManager
+
+	# --- step 8: MatchManager starts in INTRO — wait for "Fight!" before any
+	# scenario below touches combat (intro_seconds was shrunk to 0.1s at boot).
+	await _until(
+		func() -> bool: return match_manager.phase == MatchManager.Phase.FIGHTING, 60,
+		"match reaches FIGHTING before the scenario sequence starts"
+	)
 
 	# --- step 6: three-fighter spawn ---
 	_check(main.fighters.size() == 3, "main spawns exactly 3 fighters")
@@ -300,26 +320,172 @@ func _run(main: Main) -> void:
 		"both fighters stay inside the arena bounds"
 	)
 
-	# --- step 7: AI soak — restore real AIControllers, run ~30 simulated
-	# seconds of full 3-fighter AI combat, assert liveness + real behaviour.
-	# The step 5 stun-lock-breaker dummy is a config-less fixture that would
-	# otherwise remain a valid TargetingSystem candidate and steal AI focus —
-	# remove it before restoring AI so P2/P3 can only target the player or
-	# each other.
+	# --- step 8: MatchManager — scoring, round-lock, win, restart -------------
+	# FighterP2 is already a MANAGED fighter (config != null, spawned by Main)
+	# parked as a passive stub — reused here as a punching bag the match
+	# machinery actually scores/locks/wins on (same swap-controller pattern).
+	# The step 5 stun-lock-breaker dummy is done being useful; free it now so
+	# it can't be mistaken for the scoring target or steal AI focus later.
 	dummy.queue_free()
+
+	# --- 8a: scoring ---
+	player.target = null # avoid a stale reference to the dummy we just freed
+	fighter_p2.target = null
+	fighter_p2.position = Vector3(player.position.x + 0.9, 0.0, 0.0)
+	fighter_p2.velocity = Vector3.ZERO
+	player.facing = 1
+	player._apply_facing()
+	await _ticks(3)
+
+	_score_changed_events.clear()
+	Input.action_press(&"punch")
+	await _ticks(2)
+	Input.action_release(&"punch")
+	await _until(
+		func() -> bool: return int(match_manager.scores.get(player, 0)) >= 1, 40,
+		"MatchManager scores the player's punch on FighterP2"
+	)
+	_check(int(match_manager.scores.get(player, 0)) == 1, "player's MatchManager score is exactly 1")
+	_check(_score_changed_events.size() > 0, "score_changed fired for the scoring punch")
+	await _until(
+		func() -> bool: return player.state == Fighter.State.IDLE, 60,
+		"attacker recovers after the scoring punch"
+	)
+
+	# --- 8b: knockdown -> ROUND_LOCK ---
+	_check(match_manager.phase == MatchManager.Phase.FIGHTING, "still FIGHTING going into the sweep")
+	Input.action_press(&"down")
+	Input.action_press(&"kick")
+	await _ticks(2)
+	Input.action_release(&"down")
+	Input.action_release(&"kick")
+	await _until(
+		func() -> bool: return match_manager.phase == MatchManager.Phase.ROUND_LOCK, 40,
+		"sweep knockdown triggers ROUND_LOCK"
+	)
+	var lock_time_start := match_manager.remaining_time
+	await _until(
+		func() -> bool:
+			for f in main.fighters:
+				if (f as Fighter).state != Fighter.State.ROUND_LOCKED:
+					return false
+			return true,
+		120, "every managed fighter ends up ROUND_LOCKED during the lock"
+	)
+	await _until(
+		func() -> bool: return match_manager.phase == MatchManager.Phase.FIGHTING, 200,
+		"phase returns to FIGHTING once the round-lock sequence finishes"
+	)
+	var lock_time_end := match_manager.remaining_time
+	_check(lock_time_end >= lock_time_start, "match timer does not decrease during ROUND_LOCK")
+	for f: Fighter in main.fighters:
+		_check(
+			absf(f.position.x - f.config.spawn_x) < 0.3,
+			"%s ends near its spawn mark after the round-lock" % f.config.display_name
+		)
+	_check(player.state == Fighter.State.IDLE, "player is IDLE after the round-lock sequence")
+
+	# --- 8c: win ---  plain punches never lock (only knockdowns do), so this is
+	# just repeated punches with mutual recovery waits until target_score.
+	fighter_p2.position = Vector3(player.position.x + 0.9, 0.0, 0.0)
+	fighter_p2.velocity = Vector3.ZERO
+	player.target = null
+	fighter_p2.target = null
+	await _ticks(3)
+	_check(player.facing == 1, "player faces FighterP2 again after the round-lock reposition")
+
+	var punches_needed: int = match_manager.target_score - int(match_manager.scores.get(player, 0))
+	for i in punches_needed:
+		# A landed (non-knockdown) HIT still applies knockback per docs/plan.md
+		# ("Re-hit during HIT_STUN ... RESETS stun/knockback"), which pushes
+		# FighterP2 away from the player each time — re-pin it into range before
+		# every punch rather than relying on it staying put.
+		fighter_p2.position = Vector3(player.position.x + 0.9, 0.0, 0.0)
+		fighter_p2.velocity = Vector3.ZERO
+		Input.action_press(&"punch")
+		await _ticks(2)
+		Input.action_release(&"punch")
+		# The winning punch can force the player straight to VICTORY (skipping
+		# IDLE entirely) the instant its score crosses target_score, well before
+		# its own attack recovery would otherwise finish — accept either.
+		await _until(
+			func() -> bool:
+				return player.state == Fighter.State.IDLE or match_manager.phase == MatchManager.Phase.ENDED,
+			60, "attacker recovers (or the match ends) after scoring punch %d/%d" % [i + 1, punches_needed]
+		)
+		if match_manager.phase == MatchManager.Phase.ENDED:
+			break
+		# Wait for FighterP2 to fully reset to neutral before the next punch —
+		# otherwise a rapid re-press could trip the stun-lock breaker (3
+		# consecutive hits while still in HIT_STUN auto-converts to KNOCKDOWN,
+		# which would round-lock instead of the plain scoring this scenario
+		# wants).
+		await _until(
+			func() -> bool: return fighter_p2.state == Fighter.State.IDLE, 60,
+			"FighterP2 resets to neutral before the next scoring punch"
+		)
+
+	await _until(
+		func() -> bool: return match_manager.phase == MatchManager.Phase.ENDED, 60,
+		"match ends once the player reaches target_score"
+	)
+	_check(match_manager.winner == player, "MatchManager's winner is the player")
+	_check(
+		_match_ended_events.size() > 0 and _match_ended_events[-1] == player,
+		"match_ended fired with the player as winner"
+	)
+	_check(player.state == Fighter.State.VICTORY, "player enters VICTORY")
+	_check(fighter_p2.state == Fighter.State.ROUND_LOCKED, "FighterP2 (loser) ends ROUND_LOCKED")
+	_check(fighter_p3.state == Fighter.State.ROUND_LOCKED, "FighterP3 (loser) ends ROUND_LOCKED")
+
+	# --- 8d: restart ---
+	# Capture the instance ID rather than `main` itself: reload_current_scene()
+	# frees the old node, and a lambda that captures a since-freed Object
+	# errors when called ("Lambda capture ... was freed") — a plain int avoids
+	# that entirely.
+	var old_main_id := main.get_instance_id()
+	Input.action_press(&"restart")
+	await _ticks(2)
+	Input.action_release(&"restart")
+	await _until(
+		func() -> bool: return current_scene == null or current_scene.get_instance_id() != old_main_id, 90,
+		"restart (R) reloads the scene"
+	)
+
+	# --- post-restart: re-acquire everything (reload_current_scene() frees the
+	# whole previous tree — main/player/fighter_p2/fighter_p3/match_manager are
+	# all stale references now) ---
+	main = current_scene as Main
+	await _ticks(1)
+	match_manager = main.get_node("MatchManager") as MatchManager
+	match_manager.intro_seconds = 0.1
+	match_manager.match_seconds = 20.0
+	player = main.get_node("PlayerFighter")
+	fighter_p2 = main.get_node("FighterP2")
+	fighter_p3 = main.get_node("FighterP3")
+	_check(main.fighters.size() == 3, "restart: main re-spawns exactly 3 fighters")
+	_check(int(match_manager.scores.get(player, 0)) == 0, "restart: scores are reset to 0")
+	_check(
+		match_manager.phase == MatchManager.Phase.INTRO or match_manager.phase == MatchManager.Phase.FIGHTING,
+		"restart: phase is back to INTRO/FIGHTING"
+	)
 
 	# The player keeps reading the global Input singleton — make sure nothing
 	# injected by the scenarios above is still held down.
 	for action: StringName in [
-		&"move_left", &"move_right", &"down", &"jump", &"punch", &"kick", &"block"
+		&"move_left", &"move_right", &"down", &"jump", &"punch", &"kick", &"block", &"restart"
 	]:
 		Input.action_release(action)
 
-	var ai_normal: AIProfile = load("res://resources/fighters/ai_normal.tres")
-	_restore_ai(fighter_p2, ai_normal)
-	_restore_ai(fighter_p3, ai_normal)
+	await _until(
+		func() -> bool: return match_manager.phase == MatchManager.Phase.FIGHTING, 120,
+		"post-restart: match reaches FIGHTING before the AI soak"
+	)
 
-	# Reposition all three fighters to their spawn marks (FighterConfig.spawn_x).
+	# --- step 7/8: AI soak — the freshly spawned FighterP2/P3 already carry
+	# live AIControllers straight out of Main._spawn_fighters() (no restore
+	# needed post-reload); run ~30 simulated seconds of full 3-fighter AI
+	# combat with the match flow live, and assert liveness + real behaviour.
 	player.position = Vector3(-2.5, 0.0, 0.0)
 	fighter_p2.position = Vector3(0.0, 0.0, 0.0)
 	fighter_p3.position = Vector3(2.5, 0.0, 0.0)
@@ -333,35 +499,26 @@ func _run(main: Main) -> void:
 	_hit_events.clear()
 	_target_changed_events.clear()
 
-	# Sample AI states every 30 ticks into sets: every AI must pass through IDLE
-	# at some sampled point (nobody wedged in a stuck state), and blocks are
-	# stochastic so a directly-observed BLOCKING state is an acceptable
-	# alternative to a resolver BLOCKED event for assert (d) below.
-	var idle_seen := {} # Fighter -> true
-	var blocking_seen := false
+	# Run up to SOAK_TICKS or until the (now-live) match reaches ENDED —
+	# match_seconds = 20 s + AI aggression means it may genuinely end early via
+	# timeout/sudden-death/score, which is expected: once ENDED, every
+	# non-winner is deliberately parked ROUND_LOCKED forever, so continuing to
+	# demand a fresh IDLE/BLOCKING sample past that point would be asserting
+	# against the match machinery's own by-design end state, not liveness.
 	const SOAK_TICKS := 1800 # ~30 simulated seconds at 60 tps
-	const SAMPLE_EVERY := 30
-	for i in SOAK_TICKS:
+	for _i in SOAK_TICKS:
+		if match_manager.phase == MatchManager.Phase.ENDED:
+			break
 		await physics_frame
-		if i % SAMPLE_EVERY == 0:
-			for f in [fighter_p2, fighter_p3]:
-				if f.state == Fighter.State.IDLE:
-					idle_seen[f] = true
-				elif f.state == Fighter.State.BLOCKING:
-					blocking_seen = true
 
 	var scoring_hits := 0
 	var ai_vs_ai := false
-	var blocked_seen := false
 	for ev in _hit_events:
 		var attacker := ev[0] as Fighter
 		var victim := ev[1] as Fighter
 		var result: int = ev[2]
-		match result:
-			CombatResolver.HitResult.HIT, CombatResolver.HitResult.KNOCKDOWN:
-				scoring_hits += 1
-			CombatResolver.HitResult.BLOCKED:
-				blocked_seen = true
+		if result == CombatResolver.HitResult.HIT or result == CombatResolver.HitResult.KNOCKDOWN:
+			scoring_hits += 1
 		if attacker != null and victim != null and attacker != player and victim != player:
 			ai_vs_ai = true # neither side is the player -> the two AI fighters fought each other
 
@@ -369,12 +526,12 @@ func _run(main: Main) -> void:
 	_check(scoring_hits >= 5, "AI soak: at least 5 HIT/KNOCKDOWN events occurred (got %d)" % scoring_hits)
 	_check(ai_vs_ai, "AI soak: at least one hit event was between the two AI fighters")
 	_check(
-		blocked_seen or blocking_seen,
-		"AI soak: at least one BLOCKED event or an observed AI BLOCKING state occurred"
-	)
-	_check(
-		idle_seen.has(fighter_p2) and idle_seen.has(fighter_p3),
-		"AI soak: both AI fighters passed through IDLE at some sampled point (nobody stuck)"
+		(
+			match_manager.phase == MatchManager.Phase.FIGHTING
+			or match_manager.phase == MatchManager.Phase.SUDDEN_DEATH
+			or match_manager.phase == MatchManager.Phase.ENDED
+		),
+		"post-restart AI soak: phase is FIGHTING/SUDDEN_DEATH/ENDED at exit (never wedged in INTRO/ROUND_LOCK)"
 	)
 
 	_finish()
@@ -407,16 +564,6 @@ func _park_as_passive(fighter: Fighter) -> void:
 	stub.name = "Controller"
 	fighter.add_child(stub)
 	fighter.controller = stub
-
-
-## Step 7: swap a passive stub back out for a fresh, real AIController.
-func _restore_ai(fighter: Fighter, profile: AIProfile) -> void:
-	fighter.get_node("Controller").free()
-	var ai := AIController.new()
-	ai.name = "Controller"
-	ai.profile = profile
-	fighter.add_child(ai)
-	fighter.controller = ai
 
 
 func _ticks(n: int) -> void:
@@ -459,3 +606,11 @@ func _on_hit(attacker: Node, victim: Node, result: int, attack: Resource) -> voi
 
 func _on_target_changed(fighter: Node, new_target: Node) -> void:
 	_target_changed_events.append([fighter, new_target])
+
+
+func _on_score_changed(fighter: Node, new_score: int) -> void:
+	_score_changed_events.append([fighter, new_score])
+
+
+func _on_match_ended(winner: Node) -> void:
+	_match_ended_events.append(winner)

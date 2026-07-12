@@ -1,9 +1,13 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/match/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/combat/combat_resolver.gd" id="3_resolver"]
 [ext_resource type="Script" path="res://scripts/combat/debug_draw.gd" id="4_debug_draw"]
 [ext_resource type="Script" path="res://scripts/ai/targeting_system.gd" id="5_targeting"]
+[ext_resource type="Script" path="res://scripts/match/match_manager.gd" id="6_match_manager"]
+[ext_resource type="Script" path="res://scripts/match/pause_controller.gd" id="7_pause_controller"]
+[ext_resource type="Script" path="res://scripts/match/restart_controller.gd" id="8_restart_controller"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="9_hud"]
 
 [sub_resource type="BoxMesh" id="ground_mesh"]
 size = Vector3(20, 0.5, 6)
@@ -46,5 +50,43 @@ script = ExtResource("5_targeting")
 process_physics_priority = 100
 script = ExtResource("3_resolver")
 
+[node name="MatchManager" type="Node" parent="."]
+process_physics_priority = 110
+script = ExtResource("6_match_manager")
+
 [node name="DebugDraw" type="Node" parent="."]
 script = ExtResource("4_debug_draw")
+
+[node name="PauseController" type="Node" parent="."]
+process_mode = 3
+script = ExtResource("7_pause_controller")
+
+[node name="PauseLayer" type="CanvasLayer" parent="."]
+process_mode = 2
+visible = false
+
+[node name="Backdrop" type="ColorRect" parent="PauseLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="Center" type="CenterContainer" parent="PauseLayer/Backdrop"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="PauseLayer/Backdrop/Center"]
+theme_override_font_sizes/font_size = 40
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "PAUSED — Esc to resume"
+
+[node name="RestartController" type="Node" parent="."]
+process_mode = 3
+script = ExtResource("8_restart_controller")
+
+[node name="HUD" parent="." instance=ExtResource("9_hud")]

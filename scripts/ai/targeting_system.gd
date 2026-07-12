@@ -31,6 +31,7 @@ class _TargetState:
 
 var _elapsed := 0.0
 var _state := {} # Fighter -> _TargetState
+var _excluded := {} # Fighter -> true (build step 8: sudden-death non-leaders)
 
 # Autoloads fetched via the tree, never as bare identifiers (project convention).
 @onready var _events: Node = get_node(^"/root/GameEvents")
@@ -51,6 +52,8 @@ func _physics_process(delta: float) -> void:
 		# manages its own .target.
 		if fighter == null or not is_instance_valid(fighter) or fighter.config == null:
 			continue
+		if _excluded.has(fighter):
+			continue # sudden-death non-leader: ROUND_LOCKED and out of play
 		var st := _ensure_state(fighter)
 		if fighter.config.is_player:
 			_update_player_target(fighter, fighters, st)
@@ -58,9 +61,44 @@ func _physics_process(delta: float) -> void:
 			_update_ai_target(fighter, fighters, st)
 
 
-# --- ROUND_LOCK-exit retargeting hook (step 8): MatchManager will call an
-# entry point here (all AIs re-evaluate on "Fight!") once ROUND_LOCKED exists.
-# No-op today because the state is never entered.
+## ROUND_LOCK-exit retargeting hook (build step 8): MatchManager calls this once
+## all fighters are released and re-positioned, so nobody starts the fresh
+## round still locked onto a pre-lock target. Deliberately bypasses BOTH the
+## player hysteresis/cooldown and the AI switch cooldown (a forced re-evaluate,
+## not a contested steal) — every managed fighter picks its best target fresh.
+func retarget_all() -> void:
+	var fighters := get_tree().get_nodes_in_group(&"fighters")
+	for node in fighters:
+		var fighter := node as Fighter
+		if fighter == null or not is_instance_valid(fighter) or fighter.config == null:
+			continue
+		if _excluded.has(fighter):
+			continue
+		var st := _ensure_state(fighter)
+		if fighter.config.is_player:
+			# No cooldown-bypass path exists for the player rule (it already
+			# re-evaluates every tick); force the slot open so the very next
+			# tick's normal hysteresis check can immediately fill/replace it.
+			fighter.target = null
+		else:
+			_reconsider(fighter, fighters, st)
+
+
+## Sudden-death exclusion (build step 8): removes a non-leader from play —
+## clears any other managed fighter's target that pointed at it, and skips it
+## as both a candidate and a subject from then on (see the _excluded checks
+## above and in the candidate loops below). include_fighter reverses it (kept
+## for symmetry/future use; sudden death never currently re-includes anyone).
+func exclude_fighter(fighter: Fighter) -> void:
+	_excluded[fighter] = true
+	for node in get_tree().get_nodes_in_group(&"fighters"):
+		var f := node as Fighter
+		if f != null and is_instance_valid(f) and f.target == fighter:
+			f.target = null
+
+
+func include_fighter(fighter: Fighter) -> void:
+	_excluded.erase(fighter)
 
 
 func _update_player_target(fighter: Fighter, fighters: Array, st: _TargetState) -> void:
@@ -72,6 +110,8 @@ func _update_player_target(fighter: Fighter, fighters: Array, st: _TargetState) 
 		var other := node as Fighter
 		if other == null or other == fighter or not is_instance_valid(other):
 			continue
+		if _excluded.has(other):
+			continue # sudden-death non-leader: not a valid target candidate
 		var d := absf(other.position.x - fighter.position.x)
 		if d < best_dist:
 			best_dist = d
@@ -107,6 +147,8 @@ func _reconsider(fighter: Fighter, fighters: Array, st: _TargetState) -> void:
 		var other := node as Fighter
 		if other == null or other == fighter or not is_instance_valid(other):
 			continue
+		if _excluded.has(other):
+			continue # sudden-death non-leader: not a valid target candidate
 		opponents.append(other)
 	var pick := _weighted_pick(fighter, opponents)
 	if pick != null:

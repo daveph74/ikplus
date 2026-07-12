@@ -82,6 +82,12 @@ func _physics_process(delta: float) -> void:
 			_set_frozen(false)
 		return
 	_state_physics(controller.intent, delta)
+	# ROUND_LOCKED/VICTORY are fully inert (build step 8): no gravity was applied
+	# above (their _state_physics arm is a no-op) and no move_and_slide/clamp
+	# runs here either — ROUND_LOCKED's external MatchManager tween is the SOLE
+	# position authority while locked, and re-clamping mid-tween would fight it.
+	if state == State.ROUND_LOCKED or state == State.VICTORY:
+		return
 	move_and_slide()
 	# Defensive clamps: Z drift is mostly moot (no fighter-fighter body collision)
 	# but stays as backup; X clamps to arena bounds — no ring-outs in the POC.
@@ -143,6 +149,43 @@ func _apply_knockback(kb: Vector3) -> void:
 		_cached_velocity = kb # frozen mid-trade: knockback must survive the freeze
 	else:
 		velocity = kb
+
+
+# --- match control (called by MatchManager, build step 8) -------------------
+
+
+## Force-interrupts ANY state — including mid-attack — through _enter_state's
+## interrupt-safe exit handler (hitbox off, victims_hit/attack counters
+## cleared, block/down counters cleared per that state's own exit case),
+## zeroes velocity, and clears hit-stop/unfreezes the visual so a frozen
+## trade never leaves the fighter stuck mid-freeze while locked. Idempotent:
+## calling it again while already ROUND_LOCKED just re-clears the above.
+func force_round_lock() -> void:
+	hitstop_frames = 0
+	_set_frozen(false)
+	velocity = Vector3.ZERO
+	_enter_state(State.ROUND_LOCKED)
+
+
+## Releases ROUND_LOCKED. play_recovery lets the caller (MatchManager) route
+## the knockdown victim through a brief RECOVERING pass first — reusing
+## down_timer/RECOVERY_TICKS exactly like a natural knockdown recovery — so it
+## plays "recovery" as its lock-exit anim; every other released fighter goes
+## straight to IDLE. No-op if not currently locked.
+func release_round_lock(play_recovery := false) -> void:
+	if state != State.ROUND_LOCKED:
+		return
+	_enter_state(State.RECOVERING if play_recovery else State.IDLE)
+
+
+## Winner's inert victory pose — plays &"victory" once via _enter_state's
+## normal entry-anim dispatch. Also force-clears hit-stop/velocity like
+## force_round_lock, in case the winning hit itself just applied hit-stop.
+func set_victory() -> void:
+	hitstop_frames = 0
+	_set_frozen(false)
+	velocity = Vector3.ZERO
+	_enter_state(State.VICTORY)
 
 
 # --- FSM --------------------------------------------------------------------
@@ -229,9 +272,8 @@ func _state_physics(intent: FighterIntent, delta: float) -> void:
 			down_timer += 1
 			if down_timer >= RECOVERY_TICKS:
 				_enter_state(State.IDLE)
-		_:
-			# ROUND_LOCKED / VICTORY: step 8.
-			_apply_gravity(delta)
+		State.ROUND_LOCKED, State.VICTORY:
+			pass # inert: consumes no intents; MatchManager alone drives transitions out
 
 
 ## Hitbox lifecycle per docs/plan.md: enable (deferred) on the first geometric
@@ -334,8 +376,13 @@ func _enter_state(new_state: State) -> void:
 		State.RECOVERING:
 			_play_anim(&"recovery")
 			down_timer = 0
+		State.VICTORY:
+			_play_anim(&"victory")
 		_:
-			pass # MOVING picks walk_fwd/walk_back per tick; ATTACKING uses play_attack
+			pass # MOVING picks walk_fwd/walk_back per tick; ATTACKING uses play_attack;
+			# ROUND_LOCKED plays nothing new — it holds whatever pose it was
+			# interrupted from (a downed victim keeps its knockdown pose, an
+			# idle/moving fighter keeps breathing/stepping in place).
 
 
 func _start_jump(move_x: float) -> void:
