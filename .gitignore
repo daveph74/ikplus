@@ -1,2 +1,8 @@
 # Godot 4 derived cache — never commit. (*.import / *.uid sidecars ARE tracked.)
 .godot/
+
+# Meshy per-animation source exports: transient inputs to tools/build_fighter_rig.gd
+# (only the committed base below ships; clips live in the merged p1_red_anims.res)
+assets/fighters/src/*
+!assets/fighters/src/walking.glb
+!assets/fighters/src/walking.glb.import

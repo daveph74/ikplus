@@ -288,7 +288,7 @@ func _attack_tick_update() -> void:
 	if attack_tick == active_start:
 		hitbox.activate()
 	if attack_tick >= active_start and attack_tick <= active_end:
-		hitbox.snap_to(_attach_for(a).global_position)
+		hitbox.snap_to(_hitbox_anchor(a))
 	if attack_tick >= active_start + 1 and attack_tick <= active_end + 1:
 		_poll_hitbox(a)
 	if attack_tick == active_end + 1:
@@ -415,9 +415,27 @@ func _apply_facing() -> void:
 	visual.rotation.y = 0.0 if facing == 1 else PI
 
 
-func _attach_for(attack: AttackData) -> Node3D:
+## Where the active hitbox snaps this tick. Normally the animated hand/foot
+## attachment — but when the rig has no clip for this attack (foreign rigs may
+## ship incomplete sets), the attachment never leaves its rest pose, which can
+## sit BEHIND the fighter. Combat must degrade to invisible-but-correct, not
+## broken: fall back to a synthetic forward strike point at the attack's height.
+func _hitbox_anchor(attack: AttackData) -> Vector3:
 	var n := _attach_hand if attack.hitbox_type == AttackData.HitboxType.HAND else _attach_foot
-	return n if n != null else visual
+	var animated := n != null
+	if animated and visual.has_method(&"resolve_clip"):
+		animated = visual.call(&"resolve_clip", attack.anim_name) != &""
+	if animated:
+		return n.global_position
+	var strike_y := 1.4
+	match attack.height:
+		AttackData.Height.MID:
+			strike_y = 1.0
+		AttackData.Height.LOW:
+			strike_y = 0.25
+		AttackData.Height.AIR:
+			strike_y = 1.2
+	return global_position + Vector3(facing * 0.55, strike_y, 0)
 
 
 func _play_anim(anim_name: StringName) -> void:

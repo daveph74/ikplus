@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="FighterConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="FighterConfig" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/fighters/fighter_config.gd" id="1_config"]
+[ext_resource type="PackedScene" path="res://assets/fighters/src/walking.glb" id="2_rig"]
+[ext_resource type="AnimationLibrary" path="res://assets/fighters/p1_red_anims.res" id="3_anims"]
 
 [resource]
 script = ExtResource("1_config")
@@ -10,3 +12,5 @@ belt_color = Color(0.12, 0.12, 0.12, 1)
 is_player = true
 ai_profile = null
 spawn_x = -2.5
+rig_scene = ExtResource("2_rig")
+anim_library = ExtResource("3_anims")

@@ -9,3 +9,4 @@ extends Resource
 @export var ai_profile: AIProfile = null
 @export var spawn_x := 0.0
 @export var rig_scene: PackedScene = null ## imported GLB character; null = procedural placeholder
+@export var anim_library: AnimationLibrary = null ## canonical merged clips (tools/build_fighter_rig.gd)

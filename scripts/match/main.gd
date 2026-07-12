@@ -53,6 +53,7 @@ func _spawn_fighters() -> void:
 		visual.gi_color = cfg.gi_color
 		visual.belt_color = cfg.belt_color
 		visual.rig_scene = cfg.rig_scene # GLB fighter (docs/architecture.md); null = procedural
+		visual.anim_library = cfg.anim_library
 
 		# Controller swap (same free/rename/add pattern as test/smoke.gd's
 		# _spawn_dummy): non-player fighters get an AIController parameterized

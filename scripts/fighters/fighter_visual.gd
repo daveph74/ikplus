@@ -39,6 +39,11 @@ const GUARD_L := 0.9
 @export var rig_scene: PackedScene = null
 @export var rig_facing_deg := 90.0
 @export var target_height := 1.75
+## Canonical merged clips (tools/build_fighter_rig.gd). When set, REPLACES the
+## foreign rig's own libraries before clip mapping — the merged clips already
+## use canonical names, and per-animation exports (Meshy) each carry only one
+## stray clip anyway.
+@export var anim_library: AnimationLibrary = null
 
 ## canonical clip -> candidate foreign names (normalized: lowercase alnum only),
 ## tried in order — exact match first across all clips, then containment.
@@ -79,6 +84,10 @@ func _ready() -> void:
 		_build_placeholder_rig()
 		_build_animation_player()
 	elif _player != null:
+		if anim_library != null:
+			for lib_name in _player.get_animation_library_list():
+				_player.remove_animation_library(lib_name)
+			_player.add_animation_library(&"", anim_library)
 		_normalize_foreign_rig()
 		_build_clip_map()
 		_ensure_attachments()
