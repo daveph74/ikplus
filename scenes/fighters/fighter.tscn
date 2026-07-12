@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/fighters/fighter.gd" id="1_fighter"]
+[ext_resource type="Script" path="res://scripts/fighters/player_controller.gd" id="2_ctrl"]
+
+[sub_resource type="CapsuleShape3D" id="body_capsule"]
+radius = 0.35
+height = 1.7
+
+[sub_resource type="CapsuleMesh" id="placeholder_mesh"]
+radius = 0.3
+height = 1.6
+
+[node name="Fighter" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+axis_lock_linear_z = true
+script = ExtResource("1_fighter")
+
+[node name="BodyShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("body_capsule")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Rig" type="Node3D" parent="Visual"]
+
+[node name="PlaceholderMesh" type="MeshInstance3D" parent="Visual/Rig"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("placeholder_mesh")
+
+[node name="Controller" type="Node" parent="."]
+script = ExtResource("2_ctrl")
