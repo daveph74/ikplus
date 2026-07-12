@@ -37,6 +37,7 @@ const STUN_LOCK_BREAKER_HITS := 3 ## 3rd consecutive hit while still in HIT_STUN
 var state := State.IDLE
 var facing := 1 ## +1 faces +X; flips Visual, never the body
 var target: Fighter = null ## set by TargetingSystem (build step 6)
+var config: FighterConfig = null ## set by Main at spawn (build step 6); null for smoke dummies
 
 # Combat bookkeeping. hitstop_frames > 0 gates the ENTIRE combat tick — FSM
 # handler, attack frame counters, hitbox snap/poll — so active windows can't
@@ -69,6 +70,7 @@ func _ready() -> void:
 	_attach_hand = visual.find_child("AttachHandR", true, false) as Node3D
 	_attach_foot = visual.find_child("AttachFootR", true, false) as Node3D
 	resolver = get_tree().get_first_node_in_group(&"combat_resolver") as CombatResolver
+	add_to_group(&"fighters") # TargetingSystem (step 6) and Main's separation push pull this group
 
 
 func _physics_process(delta: float) -> void:

@@ -25,12 +25,13 @@ class BlockController extends FighterController:
 var _failed := false
 var _done := false
 var _hit_events: Array = []
+var _target_changed_events: Array = []
 
 
 func _initialize() -> void:
 	seed(0)
 	var packed: PackedScene = load("res://scenes/main/main.tscn")
-	var main := packed.instantiate()
+	var main := packed.instantiate() as Main
 	root.add_child(main)
 	# Required for reload_current_scene() asserts (step 8): the setter demands the
 	# node already be a child of root, hence add_child first.
@@ -45,9 +46,37 @@ func _watchdog() -> void:
 		_fail("watchdog: scenarios did not complete in 7200 ticks")
 
 
-func _run(main: Node) -> void:
+func _run(main: Main) -> void:
 	root.get_node("GameEvents").fighter_hit.connect(_on_hit)
+	root.get_node("GameEvents").target_changed.connect(_on_target_changed)
+	# Fighters are spawned in Main._ready() (build step 6) rather than baked
+	# statically into main.tscn, so they don't exist until the tree's first
+	# frame runs _ready — one tick's wait before the first get_node.
+	await physics_frame
 	var player: Fighter = main.get_node("PlayerFighter")
+
+	# --- step 6: three-fighter spawn ---
+	_check(main.fighters.size() == 3, "main spawns exactly 3 fighters")
+	var names := {}
+	var player_controller_count := 0
+	for f: Fighter in main.fighters:
+		names[f.config.display_name] = true
+		if f.get_node("Controller") is PlayerController:
+			player_controller_count += 1
+			_check(f.name == "PlayerFighter", "the PlayerController fighter is named PlayerFighter")
+	_check(names.size() == 3, "fighters have distinct display_names")
+	_check(player_controller_count == 1, "exactly one PlayerController")
+
+	var fighter_p2: Fighter = main.get_node("FighterP2")
+	var fighter_p3: Fighter = main.get_node("FighterP3")
+	# Park the AI fighters out of the way of the existing (step 2-5) combat
+	# scenarios below — they're passive stubs (no AIController until step 7), so
+	# parking just removes them as the closest target candidate; TargetingSystem
+	# may immediately reassign their own .target (harmless — they never move).
+	fighter_p2.position.x = -6.5
+	fighter_p3.position.x = -5.5
+	fighter_p2.target = null
+	fighter_p3.target = null
 
 	# --- step 2: movement ---
 	await _ticks(5)
@@ -105,9 +134,12 @@ func _run(main: Node) -> void:
 	_check(_hit_events.is_empty(), "out-of-range punch whiffs (no event)")
 
 	# --- step 5a: facing block ---
-	# Dummy's own facing never updates (no TargetingSystem until step 6, and the
-	# passive/block stubs never set move_x), so it stays at its spawn default of
-	# +1. Position the dummy to the player's RIGHT (as scenario 1 already did) so
+	# Dummy's own facing never updates: TargetingSystem only manages fighters with
+	# a non-null config (Main's spawned FighterConfigs), so this config-less test
+	# fixture is a valid target CANDIDATE for others but never gets its own
+	# .target assigned — and the passive/block stubs never set move_x either — so
+	# it stays at its spawn default of +1. Position the dummy to the player's
+	# RIGHT (as scenario 1 already did) so
 	# the attacker's punch travels the dummy's +X — same side the dummy's default
 	# facing looks toward — and the block-facing check actually engages.
 	# dummy.controller is an @onready reference already resolved by _ready() —
@@ -231,6 +263,33 @@ func _run(main: Node) -> void:
 		)
 	_check(dummy.state == Fighter.State.KNOCKED_DOWN, "stun-lock breaker knocks the dummy down")
 
+	# --- step 6: targeting — closest wins with hysteresis + rate limit ---
+	_target_changed_events.clear()
+	fighter_p2.position.x = player.position.x + 1.5
+	dummy.position.x = player.position.x + 4.0
+	await _ticks(21) # >= 0.35 s: past the 0.3 s player switch cooldown
+	_check(player.target == fighter_p2, "closest wins with hysteresis + rate limit (FighterP2)")
+
+	dummy.position.x = player.position.x + 0.7 # >= 0.5 m closer than FighterP2 (1.5 m away)
+	await _ticks(21)
+	_check(player.target == dummy, "target switches to the now-closer dummy")
+
+	_check(
+		_target_changed_events.size() > 0, "at least one target_changed event during the retarget scenario"
+	)
+
+	# --- step 6: separation push ---
+	fighter_p2.position.x = player.position.x + 0.2 # overlapping; both idle/grounded
+	await _ticks(60)
+	_check(
+		absf(fighter_p2.position.x - player.position.x) > 0.5,
+		"separation push spaces the overlapping pair apart"
+	)
+	_check(
+		absf(fighter_p2.position.x) <= 7.0 and absf(player.position.x) <= 7.0,
+		"both fighters stay inside the arena bounds"
+	)
+
 	_finish()
 
 
@@ -287,3 +346,7 @@ func _finish() -> void:
 
 func _on_hit(attacker: Node, victim: Node, result: int, attack: Resource) -> void:
 	_hit_events.append([attacker, victim, result, attack])
+
+
+func _on_target_changed(fighter: Node, new_target: Node) -> void:
+	_target_changed_events.append([fighter, new_target])

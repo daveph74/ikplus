@@ -1,9 +1,9 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/match/main.gd" id="1_main"]
-[ext_resource type="PackedScene" path="res://scenes/fighters/fighter.tscn" id="2_fighter"]
 [ext_resource type="Script" path="res://scripts/combat/combat_resolver.gd" id="3_resolver"]
 [ext_resource type="Script" path="res://scripts/combat/debug_draw.gd" id="4_debug_draw"]
+[ext_resource type="Script" path="res://scripts/ai/targeting_system.gd" id="5_targeting"]
 
 [sub_resource type="BoxMesh" id="ground_mesh"]
 size = Vector3(20, 0.5, 6)
@@ -15,6 +15,7 @@ size = Vector3(20, 0.5, 6)
 albedo_color = Color(0.52, 0.4, 0.27, 1)
 
 [node name="Main" type="Node3D"]
+process_physics_priority = 50
 script = ExtResource("1_main")
 
 [node name="Ground" type="StaticBody3D" parent="."]
@@ -37,7 +38,9 @@ shadow_enabled = true
 transform = Transform3D(1, 0, 0, 0, 0.996802, 0.0799147, 0, -0.0799147, 0.996802, 0, 2.2, 14)
 fov = 25.0
 
-[node name="PlayerFighter" parent="." instance=ExtResource("2_fighter")]
+[node name="TargetingSystem" type="Node" parent="."]
+process_physics_priority = -10
+script = ExtResource("5_targeting")
 
 [node name="CombatResolver" type="Node" parent="." groups=["combat_resolver"]]
 process_physics_priority = 100

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FighterConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/fighters/fighter_config.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")
+display_name = "P3"
+gi_color = Color(0.2, 0.22, 0.45, 1)
+belt_color = Color(0.12, 0.12, 0.12, 1)
+is_player = false
+ai_profile = null
+spawn_x = 2.5
