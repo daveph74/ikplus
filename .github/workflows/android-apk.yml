@@ -6,8 +6,8 @@ name: Android APK
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "apk-*"
+    branches: [main]
+    paths: [".github/apk-build-number"]
 
 permissions:
   contents: write
