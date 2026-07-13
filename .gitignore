@@ -2,7 +2,16 @@
 .godot/
 
 # Meshy per-animation source exports: transient inputs to tools/build_fighter_rig.gd
-# (only the committed base below ships; clips live in the merged p1_red_anims.res)
+# (only each fighter's committed base GLB ships; clips live in the merged
+# p*_anims.res libraries)
 assets/fighters/src/*
 !assets/fighters/src/walking.glb
 !assets/fighters/src/walking.glb.import
+!assets/fighters/src/blue
+assets/fighters/src/blue/*
+!assets/fighters/src/blue/guard_punch.glb
+!assets/fighters/src/blue/guard_punch.glb.import
+!assets/fighters/src/white
+assets/fighters/src/white/*
+!assets/fighters/src/white/guard_punch.glb
+!assets/fighters/src/white/guard_punch.glb.import

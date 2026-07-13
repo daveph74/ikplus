@@ -1,7 +1,7 @@
 extends SceneTree
-## Merges Meshy's one-GLB-per-animation exports into a single canonical
-## AnimationLibrary (assets/fighters/p1_red_anims.res). Run after dropping
-## sources into assets/fighters/src/ (gitignored except the committed base):
+## Merges Meshy's one-GLB-per-animation exports into per-fighter canonical
+## AnimationLibraries. Run after dropping sources into a variant's src dir
+## (gitignored except each fighter's committed base GLB):
 ##   godot --headless --path . --script res://tools/build_fighter_rig.gd
 ##
 ## Per clip: bakes tracks at 30 Hz over a slice window (aligning the strike
@@ -9,8 +9,17 @@ extends SceneTree
 ## horizontal root motion from Hips/root position tracks (physics owns fighter
 ## position — clips that wander would slide the visual off the collision
 ## capsule), and optionally reverses (walk_back = Walking backwards).
+##
+## Meshy retargets the same library animation onto every character, so MAP's
+## slice timings are shared by all variants; a variant is just a source dir +
+## output path. Variants with no source dir yet are skipped; missing sources
+## within a variant skip just that clip (partial batches are normal).
 
-const OUT := "res://assets/fighters/p1_red_anims.res"
+const VARIANTS := {
+	&"red": ["res://assets/fighters/src", "res://assets/fighters/p1_red_anims.res"],
+	&"white": ["res://assets/fighters/src/white", "res://assets/fighters/p2_white_anims.res"],
+	&"blue": ["res://assets/fighters/src/blue", "res://assets/fighters/p3_blue_anims.res"],
+}
 const BAKE_FPS := 30.0
 
 ## canonical -> [src, start s, end s (-1 = clip end), loop, reverse, pin_root_y?, retime_to_s?]
@@ -41,16 +50,29 @@ const MAP := {
 
 
 func _initialize() -> void:
+	var any_err := false
+	for variant: StringName in VARIANTS:
+		var src_dir: String = VARIANTS[variant][0]
+		var out: String = VARIANTS[variant][1]
+		if not DirAccess.dir_exists_absolute(src_dir):
+			print("BUILD [", variant, "] skipped (no ", src_dir, ")")
+			continue
+		if not _build_variant(variant, src_dir, out):
+			any_err = true
+	quit(1 if any_err else 0)
+
+
+func _build_variant(variant: StringName, src_dir: String, out: String) -> bool:
 	var lib := AnimationLibrary.new()
 	var cache := {} # src name -> Animation (the single imported clip)
 	for canonical: StringName in MAP:
 		var spec: Array = MAP[canonical]
 		var src: String = spec[0]
 		if not cache.has(src):
-			cache[src] = _load_clip(src)
+			cache[src] = _load_clip(src_dir, src)
 		var anim: Animation = cache[src]
 		if anim == null:
-			print("BUILD skip ", canonical, " (missing source ", src, ")")
+			print("BUILD [", variant, "] skip ", canonical, " (missing source ", src, ")")
 			continue
 		var end: float = spec[2] if spec[2] > 0.0 else anim.length
 		var pin_y: bool = spec[5] if spec.size() > 5 else false
@@ -58,15 +80,18 @@ func _initialize() -> void:
 		var baked := _bake_slice(anim, spec[1], end, spec[4], pin_y, retime)
 		baked.loop_mode = Animation.LOOP_LINEAR if spec[3] else Animation.LOOP_NONE
 		lib.add_animation(canonical, baked)
-		print("BUILD ", canonical, " <- ", src, " [", spec[1], ", ", end, "]",
+		print("BUILD [", variant, "] ", canonical, " <- ", src, " [", spec[1], ", ", end, "]",
 				" reversed" if spec[4] else "", " len=", baked.length)
-	var err := ResourceSaver.save(lib, OUT)
-	print("BUILD saved ", OUT, " err=", err, " clips=", lib.get_animation_list().size())
-	quit(0 if err == OK else 1)
+	if lib.get_animation_list().is_empty():
+		print("BUILD [", variant, "] nothing to save (no sources in ", src_dir, ")")
+		return true
+	var err := ResourceSaver.save(lib, out)
+	print("BUILD [", variant, "] saved ", out, " err=", err, " clips=", lib.get_animation_list().size())
+	return err == OK
 
 
-func _load_clip(src: String) -> Animation:
-	var path := "res://assets/fighters/src/%s.glb" % src
+func _load_clip(src_dir: String, src: String) -> Animation:
+	var path := "%s/%s.glb" % [src_dir, src]
 	if not ResourceLoader.exists(path):
 		return null
 	var inst := (load(path) as PackedScene).instantiate()
