@@ -15,5 +15,5 @@ height = 1
 causes_knockdown = false
 hits_airborne = false
 hit_stop_ms = 70
-hitbox_type = 1
+hitbox_type = 3
 anim_name = &"kick_front"
