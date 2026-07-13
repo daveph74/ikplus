@@ -18,7 +18,6 @@ const BAKE_FPS := 30.0
 ## clips must fit the FSM's fixed get-up window; attacks instead retime at play()).
 ## pin_root_y: for airborne clips — physics owns the jump arc, so the clip's own
 ## baked hip rise is pinned to its slice-start height (limbs still animate).
-## Interim duplicates (marked) hold the slot until the remaining Meshy batches arrive.
 const MAP := {
 	&"walk_fwd": ["walking", 0.0, -1.0, true, false],
 	&"walk_back": ["walking", 0.0, -1.0, true, true],
@@ -33,7 +32,7 @@ const MAP := {
 	&"punch_low": ["punch_combo_4", 3.35, 4.1, false, false], # right punch, peak 0.94m @ t=3.6
 	&"kick_front": ["step_in_kick", 0.3, 1.1, false, false], # LEFT step-in kick, peak 0.77m @ t=0.6 (hitbox FOOT_L)
 	&"kick_round": ["roundhouse", 1.95, 2.85, false, false], # LEFT roundhouse, peak y1.3 @ t=2.25 (hitbox_type FOOT_L)
-	&"kick_jump": ["high_kick", 0.55, 1.75, false, false], # interim dup
+	&"kick_jump": ["step_turn_kick", 1.25, 1.9, false, false, true], # RIGHT turning kick, peak 0.74m @ t=1.5; root-Y pinned (aerial)
 	&"punch_jump": ["jumping_punch", 0.9, 1.8, false, false, true], # aerial overhead punch, root-Y pinned
 	&"sweep": ["sweeping_kick", 1.05, 1.95, false, false], # crouching RIGHT-leg sweep @ t=1.35
 	&"knockdown": ["falling_down", 0.3, 1.5, false, false], # backward fall onto back, settles prone
