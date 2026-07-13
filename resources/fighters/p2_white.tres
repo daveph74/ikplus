@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="FighterConfig" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="FighterConfig" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/fighters/fighter_config.gd" id="1_config"]
 [ext_resource type="Resource" path="res://resources/fighters/ai_normal.tres" id="2_ai_profile"]
+[ext_resource type="PackedScene" path="res://assets/fighters/src/white/guard_punch.glb" id="3_rig"]
+[ext_resource type="AnimationLibrary" path="res://assets/fighters/p2_white_anims.res" id="4_anims"]
 
 [resource]
 script = ExtResource("1_config")
@@ -11,3 +13,5 @@ belt_color = Color(0.12, 0.12, 0.12, 1)
 is_player = false
 ai_profile = ExtResource("2_ai_profile")
 spawn_x = 0.0
+rig_scene = ExtResource("3_rig")
+anim_library = ExtResource("4_anims")
