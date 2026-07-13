@@ -81,4 +81,5 @@ common/physics_ticks_per_second=60
 
 renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="mobile"
+textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/use_debanding=true
