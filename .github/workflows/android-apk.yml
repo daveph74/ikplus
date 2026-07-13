@@ -5,6 +5,9 @@ name: Android APK
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "apk-*"
 
 permissions:
   contents: write
@@ -78,7 +81,7 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-build-${{ github.run_number }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('apk-build-{0}', github.run_number) }}
           name: "Triple Strike APK #${{ github.run_number }}"
           body: |
             Debug-signed Android build (arm64). Download TripleStrike.apk on
