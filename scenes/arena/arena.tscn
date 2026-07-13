@@ -23,7 +23,6 @@ ambient_light_source = 2
 ambient_light_energy = 0.9
 tonemap_mode = 4
 ssao_enabled = true
-ssil_enabled = true
 glow_enabled = true
 glow_intensity = 0.18
 glow_bloom = 0.0
@@ -56,6 +55,7 @@ rotation_degrees = Vector3(-22, -58, 0)
 light_color = Color(1.0, 0.78, 0.52, 1)
 light_energy = 1.15
 shadow_enabled = true
+directional_shadow_max_distance = 35.0
 
 [node name="Ground" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
@@ -63,6 +63,7 @@ collision_layer = 1
 collision_mask = 0
 
 [node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0)
 mesh = SubResource("ground_mesh")
 surface_material_override/0 = SubResource("ground_mat")
 
