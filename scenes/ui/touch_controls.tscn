@@ -1,0 +1,90 @@
+[gd_scene load_steps=19 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/ui/touch/dpad_left.png" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/dpad_left_pressed.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/dpad_right.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/dpad_right_pressed.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/dpad_down.png" id="5"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/dpad_down_pressed.png" id="6"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_jump.png" id="7"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_jump_pressed.png" id="8"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_punch.png" id="9"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_punch_pressed.png" id="10"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_kick.png" id="11"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_kick_pressed.png" id="12"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_block.png" id="13"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_block_pressed.png" id="14"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_pause.png" id="15"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_pause_pressed.png" id="16"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_restart.png" id="17"]
+[ext_resource type="Texture2D" path="res://assets/ui/touch/btn_restart_pressed.png" id="18"]
+
+[node name="TouchControls" type="CanvasLayer"]
+process_mode = 3
+layer = 5
+
+[node name="MoveLeft" type="TouchScreenButton" parent="."]
+position = Vector2(60, 800)
+texture_normal = ExtResource("1")
+texture_pressed = ExtResource("2")
+passby_press = true
+action = "move_left"
+visibility_mode = 1
+
+[node name="MoveRight" type="TouchScreenButton" parent="."]
+position = Vector2(330, 800)
+texture_normal = ExtResource("3")
+texture_pressed = ExtResource("4")
+passby_press = true
+action = "move_right"
+visibility_mode = 1
+
+[node name="Down" type="TouchScreenButton" parent="."]
+position = Vector2(195, 918)
+texture_normal = ExtResource("5")
+texture_pressed = ExtResource("6")
+passby_press = true
+action = "down"
+visibility_mode = 1
+
+[node name="Jump" type="TouchScreenButton" parent="."]
+position = Vector2(1620, 700)
+texture_normal = ExtResource("7")
+texture_pressed = ExtResource("8")
+action = "jump"
+visibility_mode = 1
+
+[node name="Punch" type="TouchScreenButton" parent="."]
+position = Vector2(1450, 828)
+texture_normal = ExtResource("9")
+texture_pressed = ExtResource("10")
+action = "punch"
+visibility_mode = 1
+
+[node name="Kick" type="TouchScreenButton" parent="."]
+position = Vector2(1762, 828)
+texture_normal = ExtResource("11")
+texture_pressed = ExtResource("12")
+action = "kick"
+visibility_mode = 1
+
+[node name="Block" type="TouchScreenButton" parent="."]
+position = Vector2(1620, 928)
+texture_normal = ExtResource("13")
+texture_pressed = ExtResource("14")
+action = "block"
+visibility_mode = 1
+
+[node name="Pause" type="TouchScreenButton" parent="."]
+position = Vector2(1815, 130)
+texture_normal = ExtResource("15")
+texture_pressed = ExtResource("16")
+action = "pause"
+visibility_mode = 1
+
+[node name="Restart" type="TouchScreenButton" parent="."]
+position = Vector2(1710, 130)
+texture_normal = ExtResource("17")
+texture_pressed = ExtResource("18")
+action = "restart"
+visibility_mode = 1

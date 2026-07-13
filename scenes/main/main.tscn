@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/match/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/combat/combat_resolver.gd" id="3_resolver"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/camera/camera_rig.gd" id="10_camera_rig"]
 [ext_resource type="Script" path="res://scripts/match/fx_manager.gd" id="11_fx_manager"]
 [ext_resource type="PackedScene" path="res://scenes/arena/arena.tscn" id="12_arena"]
+[ext_resource type="PackedScene" path="res://scenes/ui/touch_controls.tscn" id="13_touch"]
 
 [node name="Main" type="Node3D"]
 process_physics_priority = 50
@@ -79,3 +80,5 @@ process_mode = 3
 script = ExtResource("8_restart_controller")
 
 [node name="HUD" parent="." instance=ExtResource("9_hud")]
+
+[node name="TouchControls" parent="." instance=ExtResource("13_touch")]
