@@ -117,6 +117,10 @@ func _apply_wood(mat: StandardMaterial3D, wood: Texture2D) -> void:
 	mat.albedo_texture = wood
 	mat.uv1_triplanar = true
 	mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
+	# The deck fills the frame at grazing angles: without anisotropy the plank
+	# grain either shimmers (no mips) or smears (isotropic mips) as the
+	# fighter-tracking camera moves.
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
 
 # --- ocean: far left/behind, low sun glint path, rock outcrops ------------
